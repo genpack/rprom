@@ -1,0 +1,21 @@
+Package: promer
+Type: Package
+Title: This package will be a complete toolbox for process mining, management, prediction, simulation and optimization
+Imports: gener
+Version: 1.5.4
+Date: 06 November 2018
+Author: Nicolas Berta
+Maintainer: Nicolas Berta <nicolas.berta@gmail.com>
+  Description: The package is still under construction. Documentation incomplete! Use at your own risk!
+  License: MIT
+LazyData: TRUE
+RoxygenNote: 6.0.1
+Collate:
+  'tstools.R'
+  'prosim.R'
+  'promtools.R'
+  'prom.R'
+  'transys.R'
+  'promer.R'
+  'promvis.R'
+  'tsvis.R'
