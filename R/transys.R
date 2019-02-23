@@ -153,11 +153,11 @@ TRANSYS = setRefClass('TRANSYS',
                           dp = which(!duplicated(dataset$caseID))
 
                           if(is.null(dataset$caseStart)){
-                            if(is.null(caseStartTag)){dataset$caseStart = F} else {
+                            if(is.null(caseStartTag)){dataset$caseStart = T} else {
                               startedcases = dataset$caseID[dataset$status %in% caseStartTag] %>% unique
                               dataset$caseEnd = dataset$caseID %in% startedcases}}
                           if(is.null(dataset$caseEnd)){
-                            if(is.null(caseEndTag)){dataset$caseEnd = F} else {
+                            if(is.null(caseEndTag)){dataset$caseEnd = T} else {
                               endedcases = dataset$caseID[dataset$status %in% caseEndTag] %>% unique
                               dataset$caseEnd = dataset$caseID %in% endedcases}}
 
