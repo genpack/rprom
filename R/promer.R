@@ -14,9 +14,9 @@
 #' @include prosim.R
 #' @include tstools.R
 
-# Current Version: 1.5.4
+# Current Version: 1.5.6
 # Issue Date: 08 November 2016
-# Last Issue: 06 November 2018
+# Last Issue: 14 March 2019
 
 # Version     Date                 Action
 # ----------------------------------
@@ -47,6 +47,9 @@
 # 1.5.1       26 October 2018      transys.R changed to version 0.7.2
 # 1.5.3       06 November 2018     tsvis.R changed to version 0.1.3
 # 1.5.4       06 November 2018     transys.R changed to version 0.7.3
+# 1.5.5       14 March 2019        survival.R added (version 0.0.1)
+# 1.5.6       14 March 2019        survtools.R added (version 0.0.1)
+
 
 
 
