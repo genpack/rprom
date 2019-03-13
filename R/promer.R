@@ -16,7 +16,11 @@
 
 # Current Version: 1.5.6
 # Issue Date: 08 November 2016
+<<<<<<< HEAD
 # Last Issue: 14 March 2019
+=======
+# Last Issue: 24 February 2019
+>>>>>>> 3163e49881da14bfa5368569429e9c529251c874
 
 # Version     Date                 Action
 # ----------------------------------
@@ -47,9 +51,13 @@
 # 1.5.1       26 October 2018      transys.R changed to version 0.7.2
 # 1.5.3       06 November 2018     tsvis.R changed to version 0.1.3
 # 1.5.4       06 November 2018     transys.R changed to version 0.7.3
+<<<<<<< HEAD
 # 1.5.5       14 March 2019        survival.R added (version 0.0.1)
 # 1.5.6       14 March 2019        survtools.R added (version 0.0.1)
 
+=======
+# 1.5.5       24 February 2019     transys.R changed to version 0.7.4
+>>>>>>> 3163e49881da14bfa5368569429e9c529251c874
 
 
 

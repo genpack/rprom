@@ -7,8 +7,8 @@
 # Author:        Nicolas Berta
 # Email :        nicolas.berta@gmail.com
 # Start Date:    08 November 2016
-# Last Revision: 06 November 2018
-# Version:       0.7.3
+# Last Revision: 24 February 2018
+# Version:       0.7.4
 
 # Version   Date               Action
 # -----------------------------------
@@ -38,6 +38,7 @@
 # 0.7.0     23 October 2018    Properties 'modelStart' and 'modelEnd' added to class TRANSYS, functions get.volumeIn() & get.volumeOut() modified accordingly.
 # 0.7.2     26 October 2018    Method filter.cases() modified: two filtering arguments added: startStatuses, endStatuses
 # 0.7.3     06 November 2018   Generic function summary.TRANSYS() modified: collapses multiple statuses in the summary string
+# 0.7.4     24 February 2019   Function feedStatusHistory() modified: convert dataset to data.frame to avoid causing error on tibble inputs
 
 
 # Good information for working with R functions:
@@ -152,15 +153,15 @@ TRANSYS = setRefClass('TRANSYS',
                           dp = which(!duplicated(dataset$caseID))
 
                           if(is.null(dataset$caseStart)){
-                            if(is.null(caseStartTag)){dataset$caseStart = F} else {
+                            if(is.null(caseStartTag)){dataset$caseStart = T} else {
                               startedcases = dataset$caseID[dataset$status %in% caseStartTag] %>% unique
                               dataset$caseEnd = dataset$caseID %in% startedcases}}
                           if(is.null(dataset$caseEnd)){
-                            if(is.null(caseEndTag)){dataset$caseEnd = F} else {
+                            if(is.null(caseEndTag)){dataset$caseEnd = T} else {
                               endedcases = dataset$caseID[dataset$status %in% caseEndTag] %>% unique
                               dataset$caseEnd = dataset$caseID %in% endedcases}}
 
-                          dataset %<>% select(caseID, status, nextStatus, startTime, endTime, caseStart, caseEnd, selected)
+                          dataset %<>% select(caseID, status, nextStatus, startTime, endTime, caseStart, caseEnd, selected) %>% as.data.frame
 
                           endindx = c(dp[-1] - 1, nrow(dataset))
                           dataset[endindx, 'nextStatus'] = ifelse(dataset[endindx, 'caseEnd'], 'END', 'EXIT')
