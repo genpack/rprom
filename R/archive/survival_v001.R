@@ -4,8 +4,8 @@
 # Author:         Nicolas Berta
 # Email :         nicolas.berta@gmail.com
 # Start Date:     14 March 2019
-# Last Revision:  19 March 2019
-# Version:        0.0.2
+# Last Revision:  14 March 2019
+# Version:        0.0.1
 #
 
 # Version History:
@@ -13,9 +13,6 @@
 # Version   Date               Action
 # ----------------------------------
 # 0.0.1     14 March 2019      Initial issue
-# 0.0.2     19 March 2019      Method goto() added impacting all methods by introducing cel as Current Event Log and similarly for cp, cpt, cvp, and other tables
-#                              Methods get.caseVarProfile() and ... work with argument 'full'
-
 
 
 
@@ -28,7 +25,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                            settings %>%
                              list.default(caseID_col = 'caseID', eventTime_col = 'eventTime', eventType_col = 'eventType', variable_col = 'variable', value_col = 'value') %>%
                              list.default(caseStart_tag = NULL, caseEnd_tag = NULL) %>%
-                             list.default(age_varname = 'age', deathReason_varname = 'deathReason', cp_variables = character()) ->> settings
+                             list.default(age_varname = 'age', deathReason_varname = 'deathReason', caseProfile_features = character()) ->> settings
                          },
 
                          # caseStart_tag specifies eventType that triggers start of a case (when a case is born)
@@ -36,8 +33,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                          # age_varname specifies the value in variable column whose associated value column contains the case age or tenure.
                          # if age_varname is not specifies, then age is computed from the eventTime of the earliest row whose associated value in eventType column equals caseStart_tag.
                          feed.eventLog = function(dataset){
-                           data$el  <<- dataset %>% rename(caseID = settings$caseID_col, eventTime = settings$eventTime_col, eventType = settings$eventType_col, variable = settings$variable_col, value = settings$value_col)
-                           data$cel <<- data$el
+                           data$el <<- dataset %>% rename(caseID = settings$caseID_col, eventTime = settings$eventTime_col, eventType = settings$eventType_col, variable = settings$variable_col, value = settings$value_col)
                          },
 
                          feed.caseProfile = function(dataset){
@@ -60,33 +56,30 @@ SURVIVAL = setRefClass('SURVIVAL',
                            return(data$ev)
                          },
 
-                         get.caseVarProfile = function(full = F){
+                         get.caseVarProfile = function(){
                            # For now, assume age_varname and deathReason_varname are not NULL:
                            assert(!is.null(settings$age_varname))
                            assert(!is.null(settings$deathReason_varname))
-                           variables = settings$cp_variables %U% c(settings$age_varname, settings$deathReason_varname)
 
-                           if(full){cvpname = 'cvp'; elname = 'el'} else {cvpname = 'ccvp'; elname = 'cel'}
+                           variables = settings$caseProfile_features %U% c(settings$age_varname, settings$deathReason_varname)
 
                            ### Get case profile:
-                           if(is.null(data[[cvpname]])){
-                             cat("\n", "Table ", cvpname, " is not found in the dataset. Building from event log ... ")
-                             if(is.null(data[[elname]])){stop("Table ", elname, " was not found in the dataset!")}
-                             data[[elname]] %>% filter(variable %in% variables) %>%
+                           if(is.null(data$cvp)){
+                             cat("\n", "No caseVarProfile found in the dataset. Building from event log ... ")
+                             if(is.null(data$el)){stop("No event log found in the dataset")}
+                             data$el %>% filter(variable %in% variables) %>%
                                arrange(caseID, eventTime) %>% group_by(caseID, variable) %>%
-                               summarise(firstValue = first_value(value), lastValue = last_value(Value), firstTime = first_value(eventTime), lastTime = last_value(eventTime)) ->> data[[cvpname]]
+                               summarise(firstValue = first_value(value), lastValue = last_value(Value), firstTime = first_value(eventTime), lastTime = last_value(eventTime)) ->> data$cvp
                              cat("Done!", "\n")
                            }
-                           return(data[[cvpname]])
+                           return(data$cvp)
                          },
 
-                         get.caseProfile = function(full = F){
-                           if (full) {cpname = 'cp'} else {cpname = 'ccp'}
+                         get.caseProfile = function(){
+                           if(is.null(data$cp)){
+                             cat("\n", "No caseVarProfile found in the dataset. Building from caseVarProfile ...")
 
-                           if(is.null(data[[cpname]])){
-                             cat("\n", "Table ", cpname, " was not found in the dataset. Building from caseVarProfile ...")
-
-                             get.caseVarProfile(full = full) %>% filter(variable %in% settings$cp_variables) %>%
+                             get.caseVarProfile() %>% filter(variable %in% settings$caseProfile_features) %>%
                                sdf_pivot(caseID ~ variable, fun.aggregate = list(firstValue = "sum")) -> cp
 
                              get.caseVarProfile() %>% filter(variable %in% c(settings$age_varname, settings$deathReason_varname)) %>%
