@@ -28,7 +28,25 @@ SURVIVAL = setRefClass('SURVIVAL',
                            settings %>%
                              list.default(caseID_col = 'caseID', eventTime_col = 'eventTime', eventType_col = 'eventType', variable_col = 'variable', value_col = 'value') %>%
                              list.default(caseStart_tag = NULL, caseEnd_tag = NULL) %>%
-                             list.default(age_varname = 'age', deathReason_varname = 'deathReason', cp_variables = character()) ->> settings
+                             list.default(age_varname = 'age', deathReason_varname = 'deathReason', cp_variables = character()) %>% 
+                             list.default(cp_aggregators = c(lastValue = 'last_value')) ->> settings
+                         },
+                         
+                         
+                         goto = function(time){
+                           time %<>% as.time
+                           data$cel <<- data$el %>% filter(eventTime > time)
+                           
+                           tags = names(data)
+                           
+                           reset(tags[tags %>% grep(pattern = 'ccp.')], 'ccvp')
+                         },
+                         
+                         reset = function(...){
+                           args  = c(...) %>% verify('character')
+                           for(i in args){
+                             data[[i]] <<- NULL
+                           }
                          },
 
                          # caseStart_tag specifies eventType that triggers start of a case (when a case is born)
@@ -72,36 +90,58 @@ SURVIVAL = setRefClass('SURVIVAL',
                            if(is.null(data[[cvpname]])){
                              cat("\n", "Table ", cvpname, " is not found in the dataset. Building from event log ... ")
                              if(is.null(data[[elname]])){stop("Table ", elname, " was not found in the dataset!")}
-                             data[[elname]] %>% filter(variable %in% variables) %>%
-                               arrange(caseID, eventTime) %>% group_by(caseID, variable) %>%
-                               summarise(firstValue = first_value(value), lastValue = last_value(Value), firstTime = first_value(eventTime), lastTime = last_value(eventTime)) ->> data[[cvpname]]
+                             
+                             data[[elname]] %>% el2cvp(settings$cp_aggregators) ->> data[[cvpname]]
+                               
                              cat("Done!", "\n")
                            }
                            return(data[[cvpname]])
                          },
-
-                         get.caseProfile = function(full = F){
-                           if (full) {cpname = 'cp'} else {cpname = 'ccp'}
-
-                           if(is.null(data[[cpname]])){
-                             cat("\n", "Table ", cpname, " was not found in the dataset. Building from caseVarProfile ...")
-
-                             get.caseVarProfile(full = full) %>% filter(variable %in% settings$cp_variables) %>%
-                               sdf_pivot(caseID ~ variable, fun.aggregate = list(firstValue = "sum")) -> cp
-
-                             get.caseVarProfile() %>% filter(variable %in% c(settings$age_varname, settings$deathReason_varname)) %>%
+                         
+                         get.caseVarProfileTime = function(full = T){
+                           if(full){cvptname = 'cvpt'} else {cvptname = 'ccvpt'}
+                           if(is.null(data[[cvptname]])){
+                             data$el %>% filter(variable %in% c(settings$age_varname, settings$deathReason_varname)) %>% 
+                               arrange(caseID, eventTime) %>% group_by(caseID, variable) %>% 
+                               summarise(firstValue = first_value(value), lastValue = last_value(value), firstTime = first_value(eventTime), lastTime = last_value(eventTime)) ->> data[[cvptname]]
+                           }
+                           return(data[[cvptname]])
+                         },
+                         
+                         get.caseProfileTime = function(full = T){
+                           if(full){cptname = 'cpt'} else {cptname = 'ccpt'}
+                           
+                           if(is.null(data[[cptname]])){
+                             get.caseVarProfileTime(full = full) %>% 
                                sdf_pivot(caseID ~ variable, fun.aggregate = list(lastValue = "sum", lastTime = "last_value")) %>%
                                rename(deathTime   = settings$deathReason_varname %>% paste0('_last(lastTime, false)'),
                                       deathReason = settings$deathReason_varname %>% paste0('_sum(CAST(lastValue AS DOUBLE))'),
                                       LastAgeTime = settings$age_varname %>% paste0('_last(lastTime, false)'),
                                       LastAge     = settings$age_varname %>% paste0('_sum(CAST(lastValue AS DOUBLE))')) %>%
                                mutate(deathDate = as.Date(deathTime), LastAgeDate = as.Date(LastAgeTime)) %>%
-                               mutate(deathAge  = as.numeric(datediff(deathDate, LastAgeDate)) + LastAge) -> cpt
-
-                             data$cp <<- left_join(cp, cpt, by = 'caseID')
-                             cat("Done!", "\n")
+                               mutate(deathAge  = as.numeric(datediff(deathDate, LastAgeDate)) + LastAge) ->> data[[cptname]]
                            }
-                           return(data$cp)
+                           return(data[[cptname]])
+                         },
+
+                         #
+                         get.caseProfile = function(full = F, cvp_col = 'lastValue'){
+                           if (full) {cpname = 'cp'} else {cpname = 'ccp'}
+
+                           if(is.null(data[[cpname]])){
+                             lst = list('last_value'); names(lst) <- cvp_col
+
+                             get.caseVarProfile(full = full) %>% filter(variable %in% settings$cp_variables) %>%
+                               sdf_pivot(caseID ~ variable, fun.aggregate = lst) ->> data[[cpname]]
+                           }
+                           return(data[[cpname]])
+                         },
+                         
+                         get.mldata.survival = function(){
+                           if(is.null(data$mlsurv)){
+                             data$mlsurv <<- cp2survival(ccp = get.caseProfile(), ccpt = get.caseProfileTime(F), cpt = get.caseProfileTime(T))
+                           }
+                           return(data$mlsurv)
                          },
 
                          get.aggReportName = function(type, reasons = NULL, categoricals = NULL){
