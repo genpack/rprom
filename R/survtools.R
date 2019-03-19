@@ -60,3 +60,29 @@ getHazard = function(data, tenure_col, status_col, count_col, normalize_hazard =
   if(is.null(data$censored)){data$censored = 0}
   data %>% calHazard(normalize_hazard)
 }
+
+
+el2cvp = function(eventlog, ...){
+  aggregators = c(...) %>% verify('character')
+  scr = "eventlog %>% arrange(caseID, eventTime) %>% group_by(caseID, variable) %>% summarise("
+  nms = names(aggregators)
+  N   = length(nms)
+  for(i in sequence(N)){
+    if(aggregators[nms[i]] %in% c('SUM', 'AVG')){narm = ", na.rm = T"} else {narm = ""}
+    scr %<>% paste0(nms[i], " = ", aggregators[nms[i]], "(value", narm, ")")
+    if(i < N){scr %<>% paste0(", ")}
+    
+  }
+  scr %<>% paste0(")")
+  parse(text = scr) %>% eval
+}
+
+cp2Survival = function(ccp, ccpt, cpt){
+  ccp %>% na.omit %>% 
+    inner_join(ccpt %>% filter(is.na(deathReason)) %>% select(caseID, age = LastAge), by = 'caseID') %>% 
+    inner_join(cpt, by = 'caseID') %>% 
+    mutate(censored = is.na(deathReason), 
+           endAge   = ifelse(is.na(deathReason), LastAge, deathAge),
+           TTE      = endAge - age) %>% 
+    select(- deathTime, - deathReason, - LastAgeTime, -LastAge, - deathDate, - deathAge, - LastAgeDate)
+}
