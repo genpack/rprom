@@ -38,9 +38,6 @@ calHazard = function(data, normalize_hazard = F){
     mutate(prsurv = exp(clsfty))
 }
 
-
-
-
 # This function calculates hazard and survival probability from aggregated observations
 #   given count of observations at various tenures
 # inputs:
@@ -61,7 +58,7 @@ getHazard = function(data, tenure_col, status_col, count_col, normalize_hazard =
   data %>% calHazard(normalize_hazard)
 }
 
-
+# converts eventlog to caseprofile
 el2cvp = function(eventlog, ...){
   aggregators = c(...) %>% verify('character')
   scr = "eventlog %>% arrange(caseID, eventTime) %>% group_by(caseID, variable) %>% summarise("
@@ -77,12 +74,45 @@ el2cvp = function(eventlog, ...){
   parse(text = scr) %>% eval
 }
 
-cp2Survival = function(ccp, ccpt, cpt){
-  ccp %>% na.omit %>% 
+# Converts current case profile (current feature values, current case profile time and full case profile time into machine learning data for survival model)
+cp2mls = function(ccp, ccpt, cpt){
+  ccp %>% 
     inner_join(ccpt %>% filter(is.na(deathReason)) %>% select(caseID, age = LastAge), by = 'caseID') %>% 
     inner_join(cpt, by = 'caseID') %>% 
     mutate(censored = is.na(deathReason), 
            endAge   = ifelse(is.na(deathReason), LastAge, deathAge),
            TTE      = endAge - age) %>% 
     select(- deathTime, - deathReason, - LastAgeTime, -LastAge, - deathDate, - deathAge, - LastAgeDate)
+}
+
+# directly converts eventlog to caseProfile bypassing caseVarProfile, but the aggregators must be a subset of:
+# sum, mean, last, first, min, max, count
+el2cp = function(eventlog, ...){
+  aggregators = c(...) %>% verify('character', domain = c('sum', 'mean', 'last', 'first', 'min', 'max', 'count'))
+  
+  if(inherits(eventlog, 'tbl_spark')){
+    aggrmap = c(sum = 'sum', mean = 'AVG', last = 'last_value', first = 'first_value', min = 'MIN', max = 'MAX', count = 'COUNT')
+    agglist = aggrmap[aggregators] %>% {names(.) <- rep('value', length(.));as.list(.)}
+    
+    eventlog %>% sdf_pivot(caseID ~ variable, fun.aggregate = agglist)
+  }
+}
+
+
+cvp2cp = function(cvp, cvp_cols){
+  
+  lst = rep('last_value', length(cvp_cols)) %>% {names(.)<-cvp_cols;as.list(.)}
+  
+  cvp %>% sdf_pivot(caseID ~ variable, fun.aggregate = lst)
+}
+
+cp2cpag = function(cp, catcols){
+  scr = "cp %>% group_by("
+  for(col in catcols){
+    scr %<>% paste0(col)
+    if(col != catcols[length(catcols)]){scr %<>% paste0(", ")}
+  }
+  scr %<>% paste0(") %>% summarise(Count = COUNT(caseID))")
+  
+  parse(text = scr) %>% eval
 }
