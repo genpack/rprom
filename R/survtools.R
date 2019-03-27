@@ -4,8 +4,8 @@
 # Author:         Nicolas Berta
 # Email :         nicolas.berta@gmail.com
 # Start Date:     14 March 2019
-# Last Revision:  14 March 2019
-# Version:        0.0.1
+# Last Revision:  26 March 2019
+# Version:        0.0.5
 #
 
 # Version History:
@@ -13,6 +13,8 @@
 # Version   Date               Action
 # ----------------------------------
 # 0.0.1     14 March 2019      Initial issue
+# 0.0.5     26 March 2019      Functions cp2mls, el2cp, cvp2cp, cp2cpag added
+
 
 calHazard = function(data, normalize_hazard = F){
   if(is.null(data$died)){data$died = 0}
@@ -68,7 +70,7 @@ el2cvp = function(eventlog, ...){
     if(aggregators[nms[i]] %in% c('SUM', 'AVG')){narm = ", na.rm = T"} else {narm = ""}
     scr %<>% paste0(nms[i], " = ", aggregators[nms[i]], "(value", narm, ")")
     if(i < N){scr %<>% paste0(", ")}
-    
+
   }
   scr %<>% paste0(")")
   parse(text = scr) %>% eval
@@ -76,12 +78,12 @@ el2cvp = function(eventlog, ...){
 
 # Converts current case profile (current feature values, current case profile time and full case profile time into machine learning data for survival model)
 cp2mls = function(ccp, ccpt, cpt){
-  ccp %>% 
-    inner_join(ccpt %>% filter(is.na(deathReason)) %>% select(caseID, age = LastAge), by = 'caseID') %>% 
-    inner_join(cpt, by = 'caseID') %>% 
-    mutate(censored = is.na(deathReason), 
+  ccp %>%
+    inner_join(ccpt %>% filter(is.na(deathReason)) %>% select(caseID, age = LastAge), by = 'caseID') %>%
+    inner_join(cpt, by = 'caseID') %>%
+    mutate(censored = is.na(deathReason),
            endAge   = ifelse(is.na(deathReason), LastAge, deathAge),
-           TTE      = endAge - age) %>% 
+           TTE      = endAge - age) %>%
     select(- deathTime, - deathReason, - LastAgeTime, -LastAge, - deathDate, - deathAge, - LastAgeDate)
 }
 
@@ -89,20 +91,20 @@ cp2mls = function(ccp, ccpt, cpt){
 # sum, mean, last, first, min, max, count
 el2cp = function(eventlog, ...){
   aggregators = c(...) %>% verify('character', domain = c('sum', 'mean', 'last', 'first', 'min', 'max', 'count'))
-  
+
   if(inherits(eventlog, 'tbl_spark')){
     aggrmap = c(sum = 'sum', mean = 'AVG', last = 'last_value', first = 'first_value', min = 'MIN', max = 'MAX', count = 'COUNT')
     agglist = aggrmap[aggregators] %>% {names(.) <- rep('value', length(.));as.list(.)}
-    
+
     eventlog %>% sdf_pivot(caseID ~ variable, fun.aggregate = agglist)
   }
 }
 
 
 cvp2cp = function(cvp, cvp_cols){
-  
+
   lst = rep('last_value', length(cvp_cols)) %>% {names(.)<-cvp_cols;as.list(.)}
-  
+
   cvp %>% sdf_pivot(caseID ~ variable, fun.aggregate = lst)
 }
 
@@ -113,6 +115,6 @@ cp2cpag = function(cp, catcols){
     if(col != catcols[length(catcols)]){scr %<>% paste0(", ")}
   }
   scr %<>% paste0(") %>% summarise(Count = COUNT(caseID))")
-  
+
   parse(text = scr) %>% eval
 }

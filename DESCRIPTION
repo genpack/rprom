@@ -2,8 +2,8 @@ Package: promer
 Type: Package
 Title: This package will be a complete toolbox for process mining, management, prediction, simulation and optimization
 Imports: gener
-Version: 1.5.5
-Date: 24 February 2019
+Version: 1.6.3
+Date: 26 March 2019
 Author: Nicolas Berta
 Maintainer: Nicolas Berta <nicolas.berta@gmail.com>
 Description: The package is still under construction. Documentation incomplete! Use at your own risk!
