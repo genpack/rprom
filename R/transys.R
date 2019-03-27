@@ -121,7 +121,7 @@ TRANSYS = setRefClass('TRANSYS',
 
                         # remove_sst: remove same status transitions
                         # caseStartFlag_col
-                        feedStatusHistory = function(dataset, caseID_col = 'caseID', status_col = 'status', startTime_col = 'startTime', caseStartFlag_col = NULL, caseEndFlag_col = NULL, caseStartTag = NULL, caseEndTag = NULL, sort_startTime = T, add_start = T, remove_sst = F){
+                        feedStatusHistory = function(dataset, caseID_col = 'caseID', status_col = 'status', startTime_col = 'startTime', caseStartFlag_col = NULL, caseEndFlag_col = NULL, caseStartTags = NULL, caseEndTags = NULL, sort_startTime = T, add_start = T, remove_sst = F){
                           # verifications
                           dataset %<>%
                             nameColumns(columns = list(caseID = caseID_col , status = status_col , startTime = startTime_col, caseStart = caseStartFlag_col, caseEnd = caseEndFlag_col),
@@ -153,12 +153,12 @@ TRANSYS = setRefClass('TRANSYS',
                           dp = which(!duplicated(dataset$caseID))
 
                           if(is.null(dataset$caseStart)){
-                            if(is.null(caseStartTag)){dataset$caseStart = T} else {
-                              startedcases = dataset$caseID[dataset$status %in% caseStartTag] %>% unique
-                              dataset$caseEnd = dataset$caseID %in% startedcases}}
+                            if(is.null(caseStartTags)){dataset$caseStart = T} else {
+                              startedcases = dataset$caseID[dataset$status %in% caseStartTags] %>% unique
+                              dataset$caseStart = dataset$caseID %in% startedcases}}
                           if(is.null(dataset$caseEnd)){
-                            if(is.null(caseEndTag)){dataset$caseEnd = T} else {
-                              endedcases = dataset$caseID[dataset$status %in% caseEndTag] %>% unique
+                            if(is.null(caseEndTags)){dataset$caseEnd = T} else {
+                              endedcases = dataset$caseID[dataset$status %in% caseEndTags] %>% unique
                               dataset$caseEnd = dataset$caseID %in% endedcases}}
 
                           dataset %<>% select(caseID, status, nextStatus, startTime, endTime, caseStart, caseEnd, selected) %>% as.data.frame
