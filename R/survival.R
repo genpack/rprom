@@ -17,29 +17,37 @@
 #                              Methods get.caseVarProfile() and ... work with argument 'full'
 
 
-
-
 SURVIVAL = setRefClass('SURVIVAL',
                        fields = list(data = 'list', report = 'list', settings = 'list'),
                        methods = list(
-                         initialize = function(config = NULL, ...){
+                         initialize = function(config = list(), ...){
                            callSuper(settings = config, ...)
 
                            settings %>%
                              list.default(caseID_col = 'caseID', eventTime_col = 'eventTime', eventType_col = 'eventType', variable_col = 'variable', value_col = 'value') %>%
                              list.default(caseStart_tag = NULL, caseEnd_tag = NULL) %>%
                              list.default(age_varname = 'age', deathReason_varname = 'deathReason', cp_variables = character()) %>% 
-                             list.default(cp_aggregators = c(lastValue = 'last_value')) ->> settings
+                             list.default(normalize_hazard = F, cp_aggregators = 'last') ->> settings
                          },
-                         
-                         
+
                          goto = function(time){
                            time %<>% as.time
-                           data$cel <<- data$el %>% filter(eventTime > time)
+                           data$cel <<- data$el %>% filter(eventTime < time)
                            
                            tags = names(data)
                            
-                           reset(tags[tags %>% grep(pattern = 'ccp.')], 'ccvp')
+                           reset('ccp', 'ccvp', 'ccpt', 'ccvpt', 'mlsurv')
+                         },
+                         
+                         set = function(...){
+                           args  = list(...)
+                           if(length(args) == 1 & inherits(args[[1]], 'list')){args = args[[1]]}
+                           for(arg in names(args)){
+                             settings[[arg]] <<- args[[arg]]
+                             ## todo: considerations for change of settings
+                             if(arg %in% 'cp_variables'){reset('cp', 'ccp', 'cvp', 'ccvp')}
+                           }
+                             
                          },
                          
                          reset = function(...){
@@ -62,10 +70,18 @@ SURVIVAL = setRefClass('SURVIVAL',
                            rename(caseID = settings$caseID_col)
                          },
 
-                         feed.caseProfile.aggregated = function(dataset, age_col = 'age', death_reason_col = 'reason', count = 'count'){
+                         feed.caseProfile.aggregated = function(dataset, count_col = 'count'){
                            data$cpag <<- dataset %>%
-                             nameColumns(columns = list(age = age_col, reason = death_reason_col, count = count_col), classes = list(age = 'integer', reason = 'character', count = 'integer')) %>%
+                             rename(age = settings$age_varname, reason = settings$deathReason_varname, count = count_col) %>%
                              arrange(age, reason)
+                         },
+                         
+                         get.caseProfile.aggregated = function(full = T){
+                           if(full){cpagname = 'cpag'} else {cpagname = 'ccpag'}
+                           if(is.null(data[[cpagname]])){
+                             get.caseProfile(full = full) %>% cp2cpag(settings$cp_categoricals) ->> data[[cpagname]]
+                           }
+                           return(data[[cpagname]])
                          },
 
                          get.eventVariables = function(){
@@ -99,9 +115,9 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
                          
                          get.caseVarProfileTime = function(full = T){
-                           if(full){cvptname = 'cvpt'} else {cvptname = 'ccvpt'}
+                           if(full){cvptname = 'cvpt';elname = 'el'} else {cvptname = 'ccvpt'; elname = 'cel'}
                            if(is.null(data[[cvptname]])){
-                             data$el %>% filter(variable %in% c(settings$age_varname, settings$deathReason_varname)) %>% 
+                             data[[elname]] %>% filter(variable %in% c(settings$age_varname, settings$deathReason_varname)) %>% 
                                arrange(caseID, eventTime) %>% group_by(caseID, variable) %>% 
                                summarise(firstValue = first_value(value), lastValue = last_value(value), firstTime = first_value(eventTime), lastTime = last_value(eventTime)) ->> data[[cvptname]]
                            }
@@ -125,25 +141,36 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
 
                          #
-                         get.caseProfile = function(full = F, cvp_col = 'lastValue'){
-                           if (full) {cpname = 'cp'} else {cpname = 'ccp'}
+                         get.caseProfile = function(full = F, cvp_cols = 'lastValue'){
+                           if (full) {cpname = 'cp'; elname = 'el'} else {cpname = 'ccp'; elname = 'cel'}
+                           
 
                            if(is.null(data[[cpname]])){
-                             lst = list('last_value'); names(lst) <- cvp_col
-
-                             get.caseVarProfile(full = full) %>% filter(variable %in% settings$cp_variables) %>%
-                               sdf_pivot(caseID ~ variable, fun.aggregate = lst) ->> data[[cpname]]
+                             
+                             if(settings$cp_aggregators %<% c('sum', 'mean', 'last', 'first', 'min', 'max', 'count')){
+                               data[[elname]] %>% filter(variable %in% settings$cp_variables) %>% 
+                                 el2cp(settings$cp_aggregators) ->> data[[cpname]]
+                             } else {
+                               get.caseVarProfile(full = full) %>% filter(variable %in% settings$cp_variables) %>%
+                                 cvp2cp(cp_cols) ->> data[[cpname]]
+                             }
+                             
+                             if(!is.null(settings$cp_binners)){
+                               data[[cpname]] <<- data[[cpname]] %>% bin_columns(settings$cp_binners)
+                             }
+                             
                            }
+
                            return(data[[cpname]])
                          },
                          
                          get.mldata.survival = function(){
                            if(is.null(data$mlsurv)){
-                             data$mlsurv <<- cp2survival(ccp = get.caseProfile(), ccpt = get.caseProfileTime(F), cpt = get.caseProfileTime(T))
+                             data$mlsurv <<- cp2mls(ccp = get.caseProfile(), ccpt = get.caseProfileTime(full = F), cpt = get.caseProfileTime(full = T))
                            }
                            return(data$mlsurv)
                          },
-
+                         
                          get.aggReportName = function(type, reasons = NULL, categoricals = NULL){
                            str = paste0(type, '.'); sp = ''
                            if(!is.empty(categoricals)) {str %<>% paste0(categoricals %>% sort %>% paste(collapse = '.')); sp = '.'}
@@ -209,8 +236,6 @@ SURVIVAL = setRefClass('SURVIVAL',
                          plot.hazard = function(reasons = NULL, categoricals = NULL, plotter = 'plotly', smooth_k = 6, gain = 100){
                            haz = get.hazard(reasons = reasons, categoricals = categoricals) %>% mutate(hazard = hazard*gain) %>%
                              filter(hazard < mean(hazard, na.rm = T) + 3*sd(hazard, na.rm = T))
-
-
 
                            if(!is.null(smooth_k)){
                              haz %<>% group_by(featval) %>% do({mutate(., hazard = zoo::rollmean(hazard, k = smooth_k, fill = NA)) %>% na.omit})
