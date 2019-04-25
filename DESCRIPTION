@@ -19,3 +19,5 @@ Collate:
   'promer.R'
   'promvis.R'
   'tsvis.R'
+  'survtools.R'
+  'survival.R'
