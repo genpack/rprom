@@ -96,7 +96,7 @@ plot.process.sankey = function(obj, config = list(), plotter = 'networkD3', ...)
   cfg = list(node.label.size = 20, node.width = 25) %<==>% config
   
   list(nodes = obj$get.nodes(), links = obj$get.links()) %>%
-    viserPlot(key = 'status', label = list(label = 'status'), source = list(source = 'status'), target = 'nextStatus', linkWidth = 'totalFreq', type = 'sankey', config = cfg, ...)
+    viserPlot(key = 'status', label = list(label = 'status'), source = list(source = 'status'), target = 'nextStatus', linkWidth = 'totalFreq', type = 'sankey', config = cfg, plotter = plotter, ...)
 }
 
 ############### Trace Overview Visualisations:
