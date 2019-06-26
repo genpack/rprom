@@ -7,8 +7,8 @@
 # Author:        Nicolas Berta
 # Email :        nicolas.berta@gmail.com
 # Start Date:    08 November 2016
-# Last Revision: 24 February 2018
-# Version:       0.7.4
+# Last Revision: 21 June 2018
+# Version:       0.7.5
 
 # Version   Date               Action
 # -----------------------------------
@@ -39,6 +39,7 @@
 # 0.7.2     26 October 2018    Method filter.cases() modified: two filtering arguments added: startStatuses, endStatuses
 # 0.7.3     06 November 2018   Generic function summary.TRANSYS() modified: collapses multiple statuses in the summary string
 # 0.7.4     24 February 2019   Function feedStatusHistory() modified: convert dataset to data.frame to avoid causing error on tibble inputs
+# 0.7.5     21 June 2019       Function TRANSYS.summary() modified: A minor bug was fixed.
 
 
 # Good information for working with R functions:
@@ -874,7 +875,8 @@ TRANSYS = setRefClass('TRANSYS',
 
 #' @export
 summary.TRANSYS = function(obj){
-  ff = obj$settings$filter %>% unlist
+  
+  ff = obj$settings$filter %>% lapply(function(x) paste(x, collapse = ',')) %>% unlist
   "Prcoess time range from: " %>% paste0(
     obj$modelStart %>% as.character,
     " until: ",
@@ -892,7 +894,7 @@ summary.TRANSYS = function(obj){
     " cases (",
     obj$get.caseIDs(full = F) %>% length,
     " filtered). Filter settings: ",
-    chif(is.empty(ff), 'No filtering applied', (names(ff) %++% '= ' %++% (ff %>% paste(collapse = ' , '))) %>% paste(collapse = ' , ')))
+    chif(is.empty(ff), 'No filtering applied', names(ff) %>% paste(":") %>% paste(ff, collapse = ' , ')))
   # "32,400 filtered) and 24 statuses (13 filtered) impacting 2,450 cases (83 filtered). Filter on completed cases with relative frequency threshold of 0.25 and loops range between 0 and 12"
 }
 
