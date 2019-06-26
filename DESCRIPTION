@@ -9,15 +9,15 @@ Maintainer: Nicolas Berta <nicolas.berta@gmail.com>
 Description: The package is still under construction. Documentation incomplete! Use at your own risk!
 License: MIT
 LazyData: TRUE
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.1
 Collate:
-  'tstools.R'
-  'prosim.R'
-  'promtools.R'
-  'prom.R'
-  'transys.R'
-  'promer.R'
-  'promvis.R'
-  'tsvis.R'
-  'survtools.R'
-  'survival.R'
+    'prom.R'
+    'tsvis.R'
+    'tstools.R'
+    'prosim.R'
+    'promtools.R'
+    'transys.R'
+    'promer.R'
+    'promvis.R'
+    'survival.R'
+    'survtools.R'
