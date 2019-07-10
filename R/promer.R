@@ -1,13 +1,10 @@
 #' NIBE package for comprehensive process modelling in R
 #'
-#' This package has whatever you need to run a process mining analysis.
-#'
-#' @section Class TRANSYS:
-#' promer provides a Reference class named as TRANSYS.
+#' This package has whatever you need to implement a process modelling.
 #'
 #' @docType package
 #' @name promer
-#'
+#' @import gener
 #' @include transys.R
 #' @include prom.R
 #' @include promtools.R
@@ -15,9 +12,9 @@
 #' @include tstools.R
 #' @include tsvis.R
 
-# Current Version: 1.6.6
+# Current Version: 1.7.0
 # Issue Date: 08 November 2016
-# Last Issue: 27 June 2019
+# Last Issue: 09 July 2019
 
 # Version     Date                 Action
 # ----------------------------------
@@ -56,6 +53,7 @@
 # 1.6.4       20 June 2019         tsvis.R changed to version 0.1.4
 # 1.6.5       21 June 2019         transys.R changed to version 0.7.5
 # 1.6.6       27 June 2019         tsvis.R changed to version 0.1.5
+# 1.7.0       09 July 2019         transys.R changed to version 0.7.9
 
 
 
