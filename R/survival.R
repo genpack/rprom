@@ -18,7 +18,16 @@
 # 0.0.3     26 March 2019      case profile is now directly generated from eventlog for certain aggregators
 
 
-
+#' @title SURVIVAL: A reference class for modelling survival of cases in a process model.
+#' @description Reference class containing some properties and methods required for survival modelling.
+#'
+#' @field data list A list of tables. Table names can be: el (event log), cel (current eventlog), cp (case profile), ccp (current case profile), 
+#' cvp (case-variable profile), ccvp(current case-variable profile), cpt (case profile time), ccpt (current case profile time), 
+#' cpag (case profile aggregated), ccpag (current case profile aggregated)
+#' @field report list A list of tables containing analysis reports.
+#' @field settings list A list of class settings. Has following parameters: caseID_col, eventTime_col, eventType_col, variable_col, value_col,
+#' caseStart_tag, caseEnd_tag, age_varname, deathReason_varname, cp_variables, normalize_hazard, cp_aggregators, cp_binners, cp_categoricals, cp_variables
+#' @export SURVIVAL
 SURVIVAL = setRefClass('SURVIVAL',
                        fields = list(data = 'list', report = 'list', settings = 'list'),
                        methods = list(
@@ -33,6 +42,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
 
                          goto = function(time){
+                           "Takes you to a given time"
                            time %<>% as.time
                            data$cel <<- data$el %>% filter(eventTime < time)
 
@@ -42,6 +52,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
 
                          set = function(...){
+                           "Set a setting parameter to a value"
                            args  = list(...)
                            if(length(args) == 1 & inherits(args[[1]], 'list')){args = args[[1]]}
                            for(arg in names(args)){
@@ -53,6 +64,8 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
 
                          reset = function(...){
+                           "Reset given table names in data list"
+                           
                            args  = c(...) %>% verify('character')
                            for(i in args){
                              data[[i]] <<- NULL
@@ -63,12 +76,15 @@ SURVIVAL = setRefClass('SURVIVAL',
                          # if caseStart_tag is not specified, age_varname must be specified.
                          # age_varname specifies the value in variable column whose associated value column contains the case age or tenure.
                          # if age_varname is not specifies, then age is computed from the eventTime of the earliest row whose associated value in eventType column equals caseStart_tag.
-                         feed.eventLog = function(dataset){
+                         feed.eventlog = function(dataset){
+                           "Feed eventlog. Argument 'dataset' must be a sparklyr table. Column names must have been defined in settings"
+                           
                            data$el  <<- dataset %>% rename(caseID = settings$caseID_col, eventTime = settings$eventTime_col, eventType = settings$eventType_col, variable = settings$variable_col, value = settings$value_col)
                            data$cel <<- data$el
                          },
 
                          feed.caseProfile = function(dataset){
+                           "Feed case profile. Argument 'dataset' must be a sparklyr table. Column names must have been defined in settings"
                            rename(caseID = settings$caseID_col)
                          },
 
@@ -79,6 +95,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
 
                          get.caseProfile.aggregated = function(full = T){
+                           # Returns the aggregated case data
                            if(full){cpagname = 'cpag'} else {cpagname = 'ccpag'}
                            if(is.null(data[[cpagname]])){
                              get.caseProfile(full = full) %>% cp2cpag(settings$cp_categoricals) ->> data[[cpagname]]
@@ -87,6 +104,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
 
                          get.eventVariables = function(){
+                           # Returns all event types and event variables(attributes) in the eventlog
                            if(is.null(data$ev)){
                              if(!is.null(data$el)){
                                data$ev <<- data$el %>% group_by(eventType, variable) %>% summarise(count = COUNT(value)) %>% collect
@@ -127,6 +145,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
 
                          get.caseProfileTime = function(full = T){
+                           " Returns timing properties of each case"
                            if(full){cptname = 'cpt'} else {cptname = 'ccpt'}
 
                            if(is.null(data[[cptname]])){
@@ -143,7 +162,8 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
 
                          #
-                         get.caseProfile = function(full = F, cvp_cols = 'lastValue'){
+                         get.caseProfile = function(full = F){
+                           " Returns current values of case features"
                            if (full) {cpname = 'cp'; elname = 'el'} else {cpname = 'ccp'; elname = 'cel'}
 
 
@@ -158,7 +178,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                              }
 
                              if(!is.null(settings$cp_binners)){
-                               data[[cpname]] <<- data[[cpname]] %>% bin_columns(settings$cp_binners)
+                               data[[cpname]] <<- data[[cpname]] %>% spark.bin(settings$cp_binners)
                              }
 
                            }
@@ -167,6 +187,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
 
                          get.mldata.survival = function(){
+                           # Returns data for training a machine learning model for predicting survival 
                            if(is.null(data$mlsurv)){
                              data$mlsurv <<- cp2mls(ccp = get.caseProfile(), ccpt = get.caseProfileTime(full = F), cpt = get.caseProfileTime(full = T))
                            }
@@ -182,6 +203,7 @@ SURVIVAL = setRefClass('SURVIVAL',
 
                          # Computes the aggregated observations based on the given categorical categoricals from caseProfile Aggregated table:
                          get.aggregates = function(categoricals = NULL){
+                           # Returns aggregated case counts on given categorical features
                            tname = get.aggReportName('aggr', categoricals)
                            if(is.null(report$aggregates[[tname]])){
                              if(!is.empty(categoricals)){
@@ -199,14 +221,12 @@ SURVIVAL = setRefClass('SURVIVAL',
                            return(report$aggregates[[tname]])
                          },
 
-                         # This function calculates hazard and survival probability from aggregated observations
-                         #   given count of observations at various tenures
-                         # inputs:
-                         #   data$cpag: data.frame containing aggregated observations
-                         #   tenure_col: which column contains age values (column values should be integer)
-                         #   status_col: status at the time of observation: must be either 'died' or 'censored'
-                         #   count_col: column containing count of observations
                          get.hazard = function(reasons = NULL, categoricals){
+                           "This function calculates hazard and survival probability from aggregated observations"
+                           "given count of observations at various tenures"
+                           "inputs:"
+                           "   reasons: set of death reasons"
+                           "   categoricals: specify to do segmentation based on some categorical features"
                            # verifications:
                            if(is.null(reasons)){reasons = data$cpag$reason %>% unique %>% na.omit}
                            assert(reasons %<% unique(data$cpag$reason))
@@ -236,6 +256,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
 
                          plot.hazard = function(reasons = NULL, categoricals = NULL, plotter = 'plotly', smooth_k = 6, gain = 100){
+                           "Plots Kaplan-Meier hazard chart"
                            haz = get.hazard(reasons = reasons, categoricals = categoricals) %>% mutate(hazard = hazard*gain) %>%
                              filter(hazard < mean(hazard, na.rm = T) + 3*sd(hazard, na.rm = T))
 
@@ -250,6 +271,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
 
                          plot.survival = function(reasons = NULL, categoricals = NULL, plotter = 'plotly', gain = 100, t0 = 0){
+                           "Plots Kaplan-Meier survival chart"
                            haz = get.hazard(reasons = reasons, categoricals = categoricals) %>% mutate(prsurv = prsurv)
 
                            cols = unique(haz$featval) %>% as.list
@@ -262,6 +284,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                          },
 
                          plot.death = function(reasons = NULL, categoricals = NULL, plotter = 'plotly', gain = 100, t0 = 0){
+                           "Plots Kaplan-Meier death chart"
                            haz = get.hazard(reasons = reasons, categoricals = categoricals) %>% mutate(prdeath = (1.0 - prsurv))
 
                            cols = unique(haz$featval) %>% as.list
