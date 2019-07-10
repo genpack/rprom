@@ -201,8 +201,8 @@ plot.cases.status.pie = function(obj, measure = 'time', aggregator = 'sum', time
   aggregator = match.arg(aggregator)
   time_unit  = match.arg(time_unit)
 
-  cst          <- obj$get.cases.statusTime()
-  aa           <- cst[obj$get.caseIDs(), ] %>% colSums(na.rm = T) %>% as.data.frame %>% rownames2Column('status')
+  cst          <- obj$get.case.status.duration()
+  aa           <- cst[obj$get.cases(), ] %>% colSums(na.rm = T) %>% as.data.frame %>% rownames2Column('status')
   names(aa)[2] <- 'duration'
   if(!is.null(trim %>% verify('numeric', lengths = 1, domain = c(0, 1), varname = 'trim'))){
     sm <- sum(aa$duration, na.rm = T)
@@ -219,7 +219,7 @@ plot.cases.table = function(obj, time_unit = c('second', 'minute', 'hour', 'day'
   time_unit = match.arg(time_unit)
   k         = 1.0/timeUnitCoeff[time_unit]
 
-  tbl = obj$cases$profile[obj$get.caseIDs(), ]
+  tbl = obj$cases$profile[obj$get.cases(), ]
   tbl$completed = tbl$caseStart & tbl$caseEnd
   tbl$duration = (k*tbl$duration) %>% round(digits = 2)
 
