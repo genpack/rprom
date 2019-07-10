@@ -4,15 +4,31 @@
 \name{TRANSYS-class}
 \alias{TRANSYS-class}
 \alias{TRANSYS}
-\title{Reference class for modelling Transition Systems}
+\title{TRANSYS: A reference class for modelling Transition Systems}
 \description{
-TRANSYS is a reference class containing some properties and methods required for analysing, modelling and visualising a Transition Sytem.
-A Transistopn System is a Markov Chain model descibing a system which can change status over time.
+Reference class containing some properties and methods required for analysing, modelling, simulating and visualising a Transition Sytem.
+A Transistopn System is the more general case of a Markov Chain model descibing a system which can change status over time.
 }
 \section{Fields}{
 
 \describe{
 \item{\code{history}}{data.frame holding history data of status transitions}
+
+\item{\code{nodes}}{data.frame holding nodes of a transition system network. Nodes are equivalent to statuses.}
+
+\item{\code{links}}{data.frame holding links of a transition system network. Links are equivalent to transitions.}
 }}
 
+\section{Methods}{
+
+\describe{
+\item{\code{feed.eventlog(dataset, caseID_col = "caseID", status_col = "status",
+  startTime_col = "startTime", caseStartFlag_col = NULL,
+  caseEndFlag_col = NULL, caseStartTags = NULL, caseEndTags = NULL,
+  sort_startTime = T, add_start = T, remove_sst = F)}}{Feeds an eventlog as a data.frame or tibble to train the transition system model.}
+
+\item{\code{get.case.path()}}{Returns trace, path, DNA or status sequence of each case}
+
+\item{\code{get.case.status.duration()}}{Returns a table containing duration of each case on each status}
+}}
 

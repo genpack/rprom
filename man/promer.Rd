@@ -6,10 +6,5 @@
 \alias{promer-package}
 \title{NIBE package for comprehensive process modelling in R}
 \description{
-This package has whatever you need to run a process mining analysis.
+This package has whatever you need to implement a process modelling.
 }
-\section{Class TRANSYS}{
-
-promer provides a Reference class named as TRANSYS.
-}
-
