@@ -87,8 +87,9 @@ cp2mls = function(ccp, ccpt, cpt){
     select(- deathTime, - deathReason, - LastAgeTime, -LastAge, - deathDate, - deathAge, - LastAgeDate)
 }
 
-# directly converts eventlog to caseProfile bypassing caseVarProfile, but the aggregators must be a subset of:
-# sum, mean, last, first, min, max, count
+#' @description Directly converts eventlog to caseProfile bypassing caseVarProfile, but the aggregators must be a subset of:
+#' sum, mean, last, first, min, max, count
+#' @export
 el2cp = function(eventlog, ...){
   aggregators = c(...) %>% verify('character', domain = c('sum', 'mean', 'last', 'first', 'min', 'max', 'count'))
 
