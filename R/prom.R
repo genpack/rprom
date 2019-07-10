@@ -229,9 +229,9 @@ PROCESS = setRefClass('PROCESS',
                         get.activity.transys = function(){
                           sts = new('TRANSYS')
                           if(!is.empty(eventlog)){
-                            eventlog %>% filter(type == 'completed') %>% sts$feedStatusHistory(caseID_col = 'caseID', status_col = 'activity', startTime_col = 'time', add_start = T)
+                            eventlog %>% filter(type == 'completed') %>% sts$feed.eventlog(caseID_col = 'caseID', status_col = 'activity', startTime_col = 'time', add_start = T)
                           } else if(!is.empty(tasklist)){
-                            sts$feedStatusHistory(tasklist, caseID_col = 'caseID', status_col = 'activity', startTime_col = 'compTime', add_start = T)
+                            sts$feed.eventlog(tasklist, caseID_col = 'caseID', status_col = 'activity', startTime_col = 'compTime', add_start = T)
                           }
                           return(sts)
                         },
@@ -239,9 +239,9 @@ PROCESS = setRefClass('PROCESS',
                         get.actGroup.transys = function(){
                           sts = new('TRANSYS')
                           if(!is.empty(eventlog)){
-                            eventlog %>% filter(type == 'arrived') %>% sts$feedStatusHistory(caseID_col = 'caseID', status_col = 'actGroup', startTime_col = 'time', add_start = T, remove_sst = T)
+                            eventlog %>% filter(type == 'arrived') %>% sts$feed.eventlog(caseID_col = 'caseID', status_col = 'actGroup', startTime_col = 'time', add_start = T, remove_sst = T)
                           } else if(!is.empty(tasklist)){
-                            sts$feedStatusHistory(tasklist, caseID_col = 'caseID', status_col = 'actGroup', startTime_col = 'arrTime', add_start = T, remove_sst = T)
+                            sts$feed.eventlog(tasklist, caseID_col = 'caseID', status_col = 'actGroup', startTime_col = 'arrTime', add_start = T, remove_sst = T)
                           }
                           return(sts)
                         },
