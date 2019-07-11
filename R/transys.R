@@ -816,94 +816,6 @@ TRANSYS = setRefClass('TRANSYS',
                       )
 )
 
-# You can provide roxygen documentation just like any other fuction:
-# Summarize by class and volume
-#
-# @name TRANSYS_compute. ...
-# @param include_name logical if TRUE include a column for the data set name
-# @param save_file logical if TRUE saves as CSV
-# @param filename character if save_file is TRUE then save to this file
-# @return a data frame of 'UserLabel', 'Count' and 'Volume' or NULL
-
-# TRANSYS$methods(
-# compute.volumes.daily = function(full = F){
-#
-#   if(full){hist = history} else {hist = history %>% filter(selected)}
-#
-#   hist$startDate <- as.Date(hist$startTime, tz = attr(hist$startTime, "tzone"))
-#   hist$endDate   <- as.Date(hist$endTime,   tz = attr(hist$endTime, "tzone"))
-#
-#   B.entr = hist %>% dplyr::group_by(startDate, status) %>% dplyr::summarise(length(caseID))
-#   B.exit = hist %>% dplyr::group_by(endDate, status)   %>% dplyr::summarise(length(caseID))
-#
-#   names(B.entr) <- c('Date', 'Status', 'Entry')
-#   names(B.exit) <- c('Date', 'Status', 'Exit')
-#
-#   B = merge(B.entr, B.exit, by = c('Date', 'Status'), all = T) # same as dplyr::full_join
-#   B[is.na(B)] <- 0
-#   E.entr = reshape2::dcast(B, Date ~ Status, mean, value.var = 'Entry')
-#   E.exit = reshape2::dcast(B, Date ~ Status, mean, value.var = 'Exit')
-#   rownames(E.entr)   <- as.character(E.entr$Date)
-#   rownames(E.exit)   <- as.character(E.exit$Date)
-#   E.entr = E.entr[, -1, drop = F]
-#   E.exit = E.exit[, -1, drop = F]
-#
-#   w      = c(which(!duplicated(hist$caseID))[-1] - 1, nrow(hist))
-#   E.stay = hist[w, c('caseID', 'nextStatus', 'endDate')] %>%
-#     dplyr::group_by(nextStatus, endDate) %>%
-#     dplyr::summarise(length(caseID)) %>%
-#     reshape2::dcast(endDate ~ nextStatus, mean, value.var = 'length(caseID)')
-#   rownames(E.stay) <- E.stay$endDate
-#   E.stay           <- E.stay[,-1, drop = F]
-#
-#   sts = colnames(E.entr) %U% colnames(E.exit) %U% colnames(E.stay)
-#   dts = as.character(seq(from = min(B$Date), to = max(B$Date), by = 1))
-#
-#
-#   E.entr[, sts %-% colnames(E.entr)] <- 0
-#   E.entr[dts %-% rownames(E.entr), ] <- 0
-#   E.exit[, sts %-% colnames(E.exit)] <- 0
-#   E.exit[dts %-% rownames(E.exit), ] <- 0
-#   E.stay[, sts %-% colnames(E.stay)] <- 0
-#   E.stay[dts %-% rownames(E.stay), ] <- 0
-#
-#   E.entr = E.entr[dts,sts]
-#   E.exit = E.exit[dts,sts]
-#   E.stay = E.stay[dts,sts]
-#
-#   E.entr[is.na(E.entr)] <- 0
-#   E.exit[is.na(E.exit)] <- 0
-#   E.stay[is.na(E.stay)] <- 0
-#
-#   volin <- new('TS.DAILY', from = min(B$Date), until = max(B$Date))
-#   volin$feedData(E.entr %>% rownames2Column('Date'), timeCol = 'Date')
-#
-#   volout <- new('TS.DAILY', from = min(B$Date), until = max(B$Date))
-#   volout$feedData(E.exit %>% rownames2Column('Date'), timeCol = 'Date')
-#
-#   E.entr = cumulative(E.entr)
-#   E.exit = cumulative(E.exit)
-#   E.stay = cumulative(E.stay)
-#
-#   V <- E.entr - E.exit
-#   assert((sum(V[nrow(V),]) == 0) & (min(V) >= 0), "Something goes wrong! Volume cannot be negative!", match.call()[[1]])
-#   V <- V + E.stay
-#
-#
-#   backlog <- new('TS.DAILY', from = min(B$Date), until = max(B$Date))
-#   backlog$feedData(V %>% rownames2Column('Date'), timeCol = 'Date')
-#
-#   if(full){
-#     timeseries.full$volin.daily   <<- volin
-#     timeseries.full$volout.daily  <<- volout
-#     timeseries.full$backlog.daily <<- backlog
-#   } else{
-#     timeseries$volin.daily   <<- volin
-#     timeseries$volout.daily  <<- volout
-#     timeseries$backlog.daily <<- backlog
-#   }
-# }
-# )
 
 #' @export
 summary.TRANSYS = function(obj){
@@ -930,6 +842,7 @@ summary.TRANSYS = function(obj){
   # "32,400 filtered) and 24 statuses (13 filtered) impacting 2,450 cases (83 filtered). Filter on completed cases with relative frequency threshold of 0.25 and loops range between 0 and 12"
 }
 
+#' @export
 simulate.TRANSYS <- function(obj, start_dt, target_dt, transition_classifier = markovchain_transition_classifier, transition_time_estimator = markovchain_transition_time_estimator){
   start_dt     <- as.time(start_dt)
   target_dt    <- as.time(target_dt)
