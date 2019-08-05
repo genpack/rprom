@@ -7,8 +7,8 @@
 # Author:        Nicolas Berta
 # Email :        nicolas.berta@gmail.com
 # Start Date:    08 November 2016
-# Last Revision: 09 July 2018
-# Version:       0.7.9
+# Last Revision: 08 August 2019
+# Version:       0.8.2
 
 # Version   Date               Action
 # -----------------------------------
@@ -41,6 +41,8 @@
 # 0.7.4     24 February 2019   Function feed.eventlog() modified: convert dataset to data.frame to avoid causing error on tibble inputs
 # 0.7.5     21 June 2019       Function TRANSYS.summary() modified: A minor bug was fixed.
 # 0.7.9     09 July 2019       Function TRANSYS.simulate() added, methods get.mldata.tc(), get.time.status.volume() added, Some method names changed, property 'cases' embedded in 'tables' 
+# 0.8.1     16 July 2019       Method filter.event() added, argument 'extra_col' added to feed.eventlog()
+# 0.8.2     08 August 2019    Method simulate.TRANSYS() modified
 
 # Good information for working with R functions:
 # http://adv-r.had.co.nz/Functions.html
@@ -82,6 +84,7 @@ TRANSYS = setRefClass('TRANSYS',
                         settings      = 'list',
                         timeseries    = 'list',
                         tables        = 'list',
+                        report        = 'list',
                         metrics       = 'list',
                         plots         = 'list',
                         timeseries.full  = 'list',
@@ -97,7 +100,7 @@ TRANSYS = setRefClass('TRANSYS',
                           nodes      <<- data.frame()
                           links      <<- data.frame()
                           statuses   <<- character()
-                          tables     <<- list()
+                          report     <<- list()
                           plots      <<- list()
                           timeseries <<- list()
                           metrics    <<- list()
@@ -120,7 +123,7 @@ TRANSYS = setRefClass('TRANSYS',
 
                         # remove_sst: remove same status transitions
                         # caseStartFlag_col
-                        feed.eventlog = function(dataset, caseID_col = 'caseID', status_col = 'status', startTime_col = 'startTime', caseStartFlag_col = NULL, caseEndFlag_col = NULL, caseStartTags = NULL, caseEndTags = NULL, sort_startTime = T, add_start = T, remove_sst = F){
+                        feed.eventlog = function(dataset, caseID_col = 'caseID', status_col = 'status', startTime_col = 'startTime', caseStartFlag_col = NULL, caseEndFlag_col = NULL, caseStartTags = NULL, caseEndTags = NULL, sort_startTime = T, add_start = T, remove_sst = F, extra_col = NULL){
                           "Feeds an eventlog as a data.frame or tibble to train the transition system model."
                           # verifications
                           dataset %<>%
@@ -161,7 +164,7 @@ TRANSYS = setRefClass('TRANSYS',
                               endedcases = dataset$caseID[dataset$status %in% caseEndTags] %>% unique
                               dataset$caseEnd = dataset$caseID %in% endedcases}}
 
-                          dataset %<>% select(caseID, status, nextStatus, startTime, endTime, caseStart, caseEnd, selected) %>% as.data.frame
+                          dataset %<>% spark.select('caseID', 'status', 'nextStatus', 'startTime', 'endTime', 'caseStart', 'caseEnd', 'selected', extra_col) %>% as.data.frame
 
                           endindx = c(dp[-1] - 1, nrow(dataset))
                           dataset[endindx, 'nextStatus'] = ifelse(dataset[endindx, 'caseEnd'], 'END', 'EXIT')
@@ -185,11 +188,13 @@ TRANSYS = setRefClass('TRANSYS',
                             dplyr::mutate(duration = as.numeric(endTime - startTime)) %>%
                             as.data.frame %>% column2Rownames('caseID') ->> tables$case.info
 
+                          tables$case.features   <<- data.frame(caseID = tables$case.info %>% rownames, selected = T)
+                          
                           if(remove_sst){dataset = dataset[dataset$status != dataset$nextStatus, ]}
 
                           dataset %<>%
-                            mutate(startDate = startTime %>% as.Date(tz = attr(startTime, "tzone")),
-                                   endDate   = endTime   %>% as.Date(tz = attr(endTime, "tzone")))
+                            mutate(startDate = startTime %>% as_date,
+                                   endDate   = endTime   %>% as_date)
 
                           caseIDs.full  <<- rownames(tables$case.info)
                           statuses.full <<- as.character(dataset$status %U% dataset$nextStatus)
@@ -209,6 +214,7 @@ TRANSYS = setRefClass('TRANSYS',
                           if(is.empty(modelEnd)){modelEnd <<- max(dataset$endTime)}
 
                           history <<- dataset
+                          
 
                           filter.case(complete = settings$filter$complete, minLoops = settings$filter$minLoops, maxLoops = settings$filter$maxLoops, IDs = settings$filter$IDs, startStatuses = settings$filter$startStatuses, endStatuses = settings$filter$endStatuses, freqThreshold = settings$filter$freqThreshold)
                         },
@@ -235,29 +241,29 @@ TRANSYS = setRefClass('TRANSYS',
                         # returns the Case Status Time (CST) matrix containing amount of time each case spent on each status. NA means the case never met the status
                         get.case.status.duration = function(){
                           "Returns a table containing duration of each case on each status"
-                          if(is.null(tables$case.status.duration)){
+                          if(is.null(report$case.status.duration)){
                             cat('\n', 'Aggregating cases to find status durations ...')
                             if(nrow(history) == 0){
-                              tables$case.status.duration <<- data.frame()
-                            } else if (is.null(tables$case.status.duration)){
+                              report$case.status.duration <<- data.frame()
+                            } else if (is.null(report$case.status.duration)){
                               history %>% dplyr::group_by(caseID, status) %>%
                                 dplyr::summarise(duration = sum(duration, na.rm = T)) %>%
-                                reshape2::dcast(caseID ~ status, value.var = 'duration') %>% column2Rownames('caseID') ->> tables$case.status.duration
+                                reshape2::dcast(caseID ~ status, value.var = 'duration') %>% column2Rownames('caseID') ->> report$case.status.duration
                             }
                             cat('Done!', '\n')
                           }
-                          return(tables$case.status.duration)
+                          return(report$case.status.duration)
                         },
 
                         get.case.status.freq = function(){
                           if(nrow(history) == 0){
-                            tables$case.status.freq <<- data.frame()
-                          } else if(is.null(tables$case.status.freq)){
+                            report$case.status.freq <<- data.frame()
+                          } else if(is.null(report$case.status.freq)){
                             history %>% dplyr::group_by(caseID, status) %>%
                               dplyr::summarise(freq = length(duration)) %>%
-                              reshape2::dcast(caseID ~ status, value.var = 'freq') %>% na2zero %>% column2Rownames('caseID') ->> tables$case.status.freq
+                              reshape2::dcast(caseID ~ status, value.var = 'freq') %>% na2zero %>% column2Rownames('caseID') ->> report$case.status.freq
                           }
-                          return(tables$case.status.freq)
+                          return(report$case.status.freq)
                         },
 
                         get.volumeIn = function(period = c('daily', 'weekly', 'hourly', 'monthly', 'annual'), full = F, as_timeseries = F){
@@ -626,12 +632,15 @@ TRANSYS = setRefClass('TRANSYS',
                         get.metric.trace  = function(traceID, measure = c('freq', 'time'), aggregator = c('sum', 'mean', 'median', 'sd')){},
 
                         get.time.status.volume = function(){
-                          hist = history %>% mutate(startTime = as.character(startTime), endTime = as.character(endTime))
-                          hist %>% reshape2::dcast(startTime ~ status, fun.aggregate = length, value.var = 'caseID') %>% column2Rownames('startTime') %>% as.matrix -> vin
-                          hist %>% reshape2::dcast(endTime ~ status,  fun.aggregate = length, value.var = 'caseID')  %>% column2Rownames('endTime') %>% as.matrix -> vout
-                          times = sort(rownames(vin) %^% rownames(vout))
-                          cols  = colnames(vin) %^% colnames(vout)
-                          cumulative(vin[times, cols] - vout[times, cols])
+                          if(is.null(report$time.status.volume)){
+                            hist = history %>% mutate(startTime = as.character(startTime), endTime = as.character(endTime))
+                            hist %>% reshape2::dcast(startTime ~ status, fun.aggregate = length, value.var = 'caseID') %>% column2Rownames('startTime') %>% as.matrix -> vin
+                            hist %>% reshape2::dcast(endTime ~ status,  fun.aggregate = length, value.var = 'caseID')  %>% column2Rownames('endTime') %>% as.matrix -> vout
+                            times = sort(rownames(vin) %^% rownames(vout))
+                            cols  = colnames(vin) %^% colnames(vout)
+                            cumulative.sum(vin[times, cols] - vout[times, cols]) ->> report$time.status.volume
+                          }
+                          return(report$time.status.volume)
                         },
                         
                         get.adjacency = function(measure = c('freq', 'time'), full = F, aggregator = c('sum', 'mean', 'median', 'sd')){
@@ -639,7 +648,7 @@ TRANSYS = setRefClass('TRANSYS',
                           aggregator   = match.arg(aggregator)
                           tabName      = 'adjacency' %>% paste(measure, aggregator, chif(full, 'full', ''), sep = '.')
 
-                          if(is.null(tables[[tabName]])){
+                          if(is.null(report[[tabName]])){
                             timevar = c(sum = 'totalTime', mean = 'meanTime', median = 'medTime', sd = 'sdTime')
                             edges   = get.links(full = full)
                             if(is.empty(edges)){return(data.frame())}
@@ -650,7 +659,7 @@ TRANSYS = setRefClass('TRANSYS',
                             for (i in get.statuses(full = full) %-% colnames(E)){E[, i] <- 0}
                             for (i in get.statuses(full = full) %-% rownames(E)){E[i, ] <- 0}
 
-                            E[get.statuses(full = full), get.statuses(full = full)] ->> tables[[tabName]]
+                            E[get.statuses(full = full), get.statuses(full = full)] ->> report[[tabName]]
                           }
                           return(tables[[tabName]])
                         },
@@ -683,47 +692,62 @@ TRANSYS = setRefClass('TRANSYS',
                           }
                         },
 
+                        get.case.status.time = function(){
+                          "Returns entry time of each case to each status in a matrix"
+                          if(is.null(report$case.status.time)){
+                            history %>% filter(selected) %>% 
+                              reshape2::dcast(caseID ~ status, value.var = 'startTime', fun.aggregate = min) %>% column2Rownames('caseID') -> wide
+                            for(i in sequence(ncol(wide))) {wide[,i] %<>% as.POSIXct(origin = '1970-01-01')}
+                            report$case.status.time <<- wide
+                          }
+                          return(report$case.status.time)
+                        },
+                        
+                        get.status.case.time = function(){
+                          "Returns entry time to each status for each case in a matrix (transpose of 'case.status.time')"
+                          if(is.null(report$status.case.time)){
+                            history %>% filter(selected) %>% 
+                              reshape2::dcast(status ~ caseID, value.var = 'startTime', fun.aggregate = min) %>% 
+                              column2Rownames('status') %>% numeric2time -> wide
+                            # for(i in sequence(ncol(wide))) {wide[,i] %<>% as.POSIXct(origin = '1970-01-01')}
+                            report$status.case.time <<- wide
+                          }
+                          return(report$status.case.time)
+                        },
+                          
                         get.traces = function(){
-                          if(is.null(tables$traces)){
+                          if(is.null(report$traces)){
                             casePath = get.case.path()
                             cat('\n', 'Aggregating traces ...')
-                            tables$traces <<- casePath[get.cases(), ] %>% dplyr::group_by(path) %>%
+                            report$traces <<- casePath[get.cases(), ] %>% dplyr::group_by(path) %>%
                               dplyr::summarise(freq = length(path), totTime = sum(duration, na.rm = T), avgTime = mean(duration, na.rm = T), medTime = median(duration, na.rm = T), sdTime = sd(duration, na.rm = T), complete = completed[1]) %>%
                               dplyr::ungroup() %>% dplyr::arrange(freq) %>%
                               dplyr::mutate(variation = 'Variation ' %++% rev(sequence(nrow(.))))
                             cat('Done!', '\n')
                           }
-                          return(tables$traces)
+                          return(report$traces)
                         },
                         
-                        # Generates ML data for training classifier model to prdict probabilities for next transition given caseID, current time, and current status
-                        get.mldata.tc = function(){
-                          tables$mldata.tc <<- obj$history %>% filter(selected) %>% select(caseID, startTime, status, nextStatus)
-                          # are there any case static features?
-                          if(!is.null(tables$case.features)){
-                            tables$mldata.tc <<- tables$mldata.tc %>% left_join(case$features, by = 'caseID')
-                          }
-                          # should I add time seasonality features?
-                          if(!is.null(tables$time.features)){
-                            tables$mldata.tc <<- tables$mldata.tc %>% left_join(time.features, by = startTime)
-                          }
-                          # should I add status.time volume features?
-                          if(!is.null(tables$time.status.volume)){
-                            tables$mldata.tc <<- tables$mldata.tc %>% left_join(time.status.volume, by = startTime)
-                          }
-                          # should I add status features?
-                          if(!is.null(tables$status.features)){
-                            tables$mldata.tc <<- tables$mldata.tc %>% left_join(status.features, by = status)
-                          }
-                          # should I add status.time features?
-                          if(!is.null(tables$status.time.features)){
-                            tables$mldata.tc <<- tables$mldata.tc %>% left_join(status.time.features, by = c(status, startTime))
-                          }
-                          return(tables$mldata.tc)
+                        get.longest_path = function(){
+                          "Returns the longest sequence observed"
+                          if(is.null(report$longest_path)){
+                              get.traces() %>% pull(path) %>% strsplit('-') -> a
+                              report$longest_path <<- a[[a %>% lapply(length) %>% unlist %>% order %>% tail(1)]]
+                            }
+                            return(report$longest_path)
+                        },
+                        
+                        feed.case.features = function(cf, caseID_col = 'caseID'){
+                          fnames = colnames(cf) %-% caseID_col
+                          common_features = tables$case.features %>% colnames %>% intersect(fnames)
+                          warnif(length(common_features) > 0, 'These features are overwritten: ' %++% common_features %++% '\n')
+                          tables$case.features %>% spark.unselect(fnames) %>% 
+                            left_join(cf %>% rename(caseID = caseID_col), by = 'caseID') ->> tables$case.features
                         },
 
                         filter.reset = function(){
                           if(nrow(history) > 0){history$selected <<- T}
+                          if(nrow(tables$case.features) > 0){tables$case.features$selected <<- T}
                           clear()
                           caseIDs    <<- caseIDs.full
                           statuses   <<- statuses.full
@@ -731,6 +755,11 @@ TRANSYS = setRefClass('TRANSYS',
                           links      <<- links.full
                           timeseries <<- timeseries.full
                           settings$filter <<- list()
+                        },
+                        
+                        filter.event = function(...){
+                          history %>% select(-selected) %>% mutate(selected = ...) %>% {colnames(.)[ncol(.)]<-'selected';.} ->> history
+                          clear()
                         },
 
                         filter.case = function(complete = NULL, minLoops = NULL, maxLoops = NULL, statusDomain = NULL, startStatuses = NULL, endStatuses = NULL, IDs = NULL, freqThreshold = NULL, reset = T){
@@ -798,6 +827,9 @@ TRANSYS = setRefClass('TRANSYS',
                                 settings$filter$freqThreshold <<- freqThreshold
                               }
                             }
+                            
+                            tables$case.filter$selected <<- tables$case.filter$caseID %in% caseIDs
+                            
                             clear()
                           }
                         },
@@ -842,8 +874,7 @@ summary.TRANSYS = function(obj){
   # "32,400 filtered) and 24 statuses (13 filtered) impacting 2,450 cases (83 filtered). Filter on completed cases with relative frequency threshold of 0.25 and loops range between 0 and 12"
 }
 
-#' @export
-simulate.TRANSYS <- function(obj, start_dt, target_dt, transition_classifier = markovchain_transition_classifier, transition_time_estimator = markovchain_transition_time_estimator){
+simulate.TRANSYS_old <- function(obj, start_dt, target_dt, transition_classifier = markovchain_transition_classifier, transition_time_estimator = markovchain_transition_time_estimator){
   start_dt     <- as.time(start_dt)
   target_dt    <- as.time(target_dt)
   final_events <- tibble()
@@ -869,6 +900,43 @@ simulate.TRANSYS <- function(obj, start_dt, target_dt, transition_classifier = m
       gen_transition_times(obj = histobj, start_dt = start_dt, transition_time_estimator = transition_time_estimator)
     # extract completed events and those that wont be completed before target_dt
     final_events <- rbind(final_events, tracking)
+    # remove those rows from tracking and update
+    tracking %<>% 
+      filter(!(nextStatus == "End" | nxtTrTime > target_dt)) %>%
+      transmute(caseID, status = nextStatus, startTime = nxtTrTime)
+  }
+  
+  final_events %>% arrange(caseID, startTime)
+}
+
+#' @export
+simulate.TRANSYS <- function(obj, start_dt, target_dt, event_generator = gen_next_events, time_generator = gen_transition_times, ...){
+  start_dt     <- as.time(start_dt)
+  target_dt    <- as.time(target_dt)
+  final_events <- tibble(status = character(), startTime = empt, nextStatus = character(), nxtTrTime = empt)
+  
+  current_backlog = obj$history %>% filter(selected) %>% filter(startTime < start_dt) %>% as.tbl() %>%  
+    group_by(caseID) %>% filter(startTime == max(startTime)) %>% ungroup %>% 
+    filter(nextStatus != 'END') %>% 
+    select(caseID, status, startTime) %>% arrange(caseID, startTime)
+  
+  new_starts = obj$history %>% filter(selected) %>% filter(startTime > start_dt, startTime < target_dt, status == 'START') %>% select(caseID, status, startTime) %>% as.tbl()
+  
+  historical_data <- obj$history %>% filter(selected) %>% filter(startTime < start_dt) %>% as.tbl() %>%  select(caseID, status, startTime) %>% unique
+  if(is.empty(historical_data)) return(final_events)
+  
+  histobj <- new('TRANSYS')
+  suppressWarnings({histobj$feed.eventlog(historical_data, caseStartTags = 'START', add_start = F)})
+  
+  # start simulation: 
+  tracking <- rbind(current_backlog, new_starts)
+  
+  while(nrow(tracking) > 0){
+    tracking <- event_generator(tracking, histobj = histobj, ...) %>% 
+      time_generator(histobj = histobj, start_dt = start_dt, new_events = final_events, ...) %>% 
+      arrange(desc(startTime))
+    final_events <- rbind(final_events, tracking)
+    # extract completed events and those that wont be completed before target_dt
     # remove those rows from tracking and update
     tracking %<>% 
       filter(!(nextStatus == "End" | nxtTrTime > target_dt)) %>%
