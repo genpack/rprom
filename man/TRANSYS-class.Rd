@@ -25,10 +25,16 @@ A Transistopn System is the more general case of a Markov Chain model descibing 
 \item{\code{feed.eventlog(dataset, caseID_col = "caseID", status_col = "status",
   startTime_col = "startTime", caseStartFlag_col = NULL,
   caseEndFlag_col = NULL, caseStartTags = NULL, caseEndTags = NULL,
-  sort_startTime = T, add_start = T, remove_sst = F)}}{Feeds an eventlog as a data.frame or tibble to train the transition system model.}
+  sort_startTime = T, add_start = T, remove_sst = F, extra_col = NULL)}}{Feeds an eventlog as a data.frame or tibble to train the transition system model.}
 
 \item{\code{get.case.path()}}{Returns trace, path, DNA or status sequence of each case}
 
 \item{\code{get.case.status.duration()}}{Returns a table containing duration of each case on each status}
+
+\item{\code{get.case.status.time()}}{Returns entry time of each case to each status in a matrix}
+
+\item{\code{get.longest_path()}}{Returns the longest sequence observed}
+
+\item{\code{get.status.case.time()}}{Returns entry time to each status for each case in a matrix (transpose of 'case.status.time')}
 }}
 
