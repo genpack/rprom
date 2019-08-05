@@ -55,7 +55,9 @@
 # Required Libraries:
 library(dplyr)
 
+#' @export
 empt = Sys.time()[-1]
+#' @export
 empd = Sys.Date()[-1]
 
 # This global variable is repeated in prom, can transfer to gener
