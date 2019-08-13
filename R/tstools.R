@@ -22,8 +22,8 @@ buildProcessMapPackage = function(obj, nodeSize = 'totalEntryFreq', nodeColor = 
   # todo: build tooltip, link label
   obj %>% verify('list', names_identical = c('nodes', 'links'), null_allowed = F)
 
-  nodes = obj$nodes
-  links = obj$links
+  nodes = obj$tables$nodes
+  links = obj$tables$links
 
   # if(is.empty(nodes)){return(NULL)}
   if(!inherits(nodeSize, c('numeric', 'integer'))){
@@ -78,24 +78,22 @@ buildTreeTable = function(traces){
 
 
 # simple transition probability model based on memory-less markov-chain model
-#' @export
 markovchain_transition_classifier = function(histobj, input, ...){
   events      <- histobj$get.nodes()
-  transitions <- histobj$get.links()
+  # transitions <- histobj$get.links()
+  # 
+  # transition_probabilities <- transitions %>% 
+  #   select(status, nextStatus, totalFreq) %>%
+  #   arrange(status, nextStatus) %>%
+  #   group_by(status) %>%
+  #   mutate(cum_freq = cumsum(totalFreq)) %>%
+  #   mutate(cum_prob = cum_freq/sum(totalFreq)) %>%
+  #   ungroup() %>%
+  #   select(status, nextStatus, cum_prob)
   
-  transition_probabilities <- transitions %>% 
-    select(status, nextStatus, totalFreq) %>%
-    arrange(status, nextStatus) %>%
-    group_by(status) %>%
-    mutate(cum_freq = cumsum(totalFreq)) %>%
-    mutate(cum_prob = cum_freq/sum(totalFreq)) %>%
-    ungroup() %>%
-    select(status, nextStatus, cum_prob)
-  
-  input %>% left_join(transition_probabilities, by = "status")
+  input %>% left_join(histobj$get.transition_probabilities(), by = "status")
 }
 
-#' @export
 markovchain_transition_time_estimator = function(histobj, input, start_dt, ...){
   transitions <- histobj$get.links()
   
@@ -109,7 +107,6 @@ markovchain_transition_time_estimator = function(histobj, input, start_dt, ...){
 }
 
 # Default next events generator
-#' @export
 gen_next_events <- function(input, histobj, transition_classifier = markovchain_transition_classifier, ...) {
   transition_classifier(histobj = histobj, input = input, ...) %>% 
     mutate(rand_var = runif(n())) %>%
@@ -124,13 +121,11 @@ gen_next_events <- function(input, histobj, transition_classifier = markovchain_
 # 'histobj': an object of class TRANSYS. 'histobj' will be passed to this function directly
 # 
 # Default next transition time generator
-#' @export
 gen_transition_times = function(input, histobj, start_dt, transition_time_estimator = markovchain_transition_time_estimator, ...){
   transition_time_estimator(histobj = histobj, input = input, start_dt = start_dt, ...) %>% 
     mutate(nxtTrTime = startTime + pred_duration)
 }
 
-#' @export
 gen_transition_times_exp = function(input, transition_durations, start_dt, ...){
   input %>% 
     left_join(transition_durations, by = c("status", "nextStatus")) %>% na.omit %>%
