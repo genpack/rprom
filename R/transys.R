@@ -57,9 +57,7 @@
 # Required Libraries:
 library(dplyr)
 
-#' @export
 empt = Sys.time()[-1]
-#' @export
 empd = Sys.Date()[-1]
 
 # This global variable is repeated in prom, can transfer to gener
@@ -79,29 +77,18 @@ TRANSYS = setRefClass('TRANSYS',
                         modelStart    = 'POSIXct',
                         modelEnd      = 'POSIXct',
                         history       = 'data.frame',
-                        nodes         = 'data.frame',
-                        links         = 'data.frame',
-                        nodes.full    = 'data.frame',
-                        links.full    = 'data.frame',
                         settings      = 'list',
-                        timeseries    = 'list',
                         tables        = 'list',
                         report        = 'list',
                         metrics       = 'list',
                         plots         = 'list',
-                        timeseries.full  = 'list',
-                        caseIDs       = 'character',
-                        statuses      = 'character',
-                        caseIDs.full  = 'character',
-                        statuses.full = 'character'
+                        timeseries    = 'list',
+                        timeseries.full  = 'list'
                       ),
 
                       methods = list(
                         
                         clear = function(){
-                          nodes      <<- data.frame()
-                          links      <<- data.frame()
-                          statuses   <<- character()
                           report     <<- list()
                           plots      <<- list()
                           timeseries <<- list()
@@ -116,7 +103,7 @@ TRANSYS = setRefClass('TRANSYS',
                           history <<- data.frame(caseID = character(), status = character(), nextStatus = character(), startTime = empt, endTime = empt, caseStart = logical(), caseEnd = logical(),
                                                  selected = logical(), startDate = empd, endDate = empd, creation = empt, duration = numeric(), eventAge = numeric(), path = character(),
                                                  stringsAsFactors = F)
-                          tables$case.info <<- data.frame(firstDtatus = character(), lastStatus = character(), startTime = empt, endTime = empt, caseStart = logical(), caseEnd = logical(), duration = numeric(),
+                          tables$profile.case <<- data.frame(caseID = character(), firstStatus = character(), lastStatus = character(), startTime = empt, endTime = empt, caseStart = logical(), caseEnd = logical(), duration = numeric(),
                                                        stringsAsFactors = F)
 
                           modelStart <<- start %>% as.time
@@ -187,36 +174,32 @@ TRANSYS = setRefClass('TRANSYS',
                           dataset[dp, c('caseID', 'startTime', 'status', 'caseStart', 'caseEnd')] %>%
                             inner_join(dataset[endindx, c('caseID', 'endTime', 'nextStatus')], by = 'caseID') %>%
                             dplyr::select(caseID, firstStatus = status, lastStatus = nextStatus, startTime, endTime, caseStart, caseEnd) %>%
-                            dplyr::mutate(duration = as.numeric(endTime - startTime)) %>%
-                            as.data.frame %>% column2Rownames('caseID') ->> tables$case.info
+                            dplyr::mutate(duration = as.numeric(endTime - startTime), completed = caseStart & caseEnd, selected = T) %>% 
+                            {rownames(.)<-.$caseID;.} ->> tables$profile.case
 
-                          tables$case.features   <<- data.frame(caseID = tables$case.info %>% rownames, selected = T)
-                          
                           if(remove_sst){dataset = dataset[dataset$status != dataset$nextStatus, ]}
-
+                          
                           dataset %<>%
                             mutate(startDate = startTime %>% as_date,
                                    endDate   = endTime   %>% as_date)
 
-                          caseIDs.full  <<- rownames(tables$case.info)
-                          statuses.full <<- as.character(dataset$status %U% dataset$nextStatus)
-                          caseIDs       <<- caseIDs.full
-                          statuses      <<- statuses.full
+                          tables$profile.status <<- data.frame(status = as.character(dataset$status %U% dataset$nextStatus)) %>% {rownames(.)<-.$status;.}
+                          report$caseIDs       <<- tables$profile.case$caseID
+                          report$statuses      <<- tables$profile.status$status
 
                           cs = as.character(dataset$caseID)
 
-                          dataset$creation   <- tables$case.info[cs, 'startTime']
+                          dataset$creation   <- tables$profile.case[cs, 'startTime']
                           dataset$duration   <- as.numeric(dataset$endTime - dataset$startTime)
                           dataset$eventAge   <- as.numeric(dataset$startTime - dataset$creation)
 
                           dataset$selected = TRUE
                           dataset$path     = dataset$status %++% '-' %++% dataset$nextStatus
 
-                          if(is.empty(modelStart)){modelStart <<- min(dataset$startTime)}
-                          if(is.empty(modelEnd)){modelEnd <<- max(dataset$endTime)}
-
                           history <<- dataset
                           
+                          if(is.empty(modelStart)){modelStart <<- min(history$startTime)}
+                          if(is.empty(modelEnd)){modelEnd     <<- max(history$endTime)}
 
                           filter.case(complete = settings$filter$complete, minLoops = settings$filter$minLoops, maxLoops = settings$filter$maxLoops, IDs = settings$filter$IDs, startStatuses = settings$filter$startStatuses, endStatuses = settings$filter$endStatuses, freqThreshold = settings$filter$freqThreshold)
                         },
@@ -224,20 +207,19 @@ TRANSYS = setRefClass('TRANSYS',
                         # tables in cases are always full and do not depend on the filtering
                         get.case.path = function(){
                           "Returns trace, path, DNA or status sequence of each case"
-                          if(is.empty(tables$case.path)){
+                          if(is.null(tables$profile.case$path)){
                             cat('\n', 'Aggregating cases to find paths ...')
                             history %>% dplyr::group_by(caseID) %>%
                               dplyr::summarise(path = paste(status, collapse = '-') %>% paste(last(nextStatus), sep = '-'), startStatus = status[2], endStatus = last(status), transCount = length(status), loops = sum(duplicated(status), na.rm = T)) %>%
                               # dplyr::summarise(minTime = min(startTime), maxTime = max(endTime), startFlag = caseStart[1], endFlag = caseEnd[1], ) %>%
                               # dplyr::mutate(duration2 = as.numeric(maxTime - minTime)) %>%
-                              dplyr::ungroup() %>% as.data.frame %>% column2Rownames('caseID') ->> tables$case.path
-
-                            cids = rownames(tables$case.path) %^% rownames(tables$case.info)
-                            tables$case.path[cids, 'duration']  <<- tables$case.info[cids, 'duration']
-                            tables$case.path[cids, 'completed'] <<- tables$case.info[cids, 'caseStart'] & tables$case.info[cids, 'caseEnd']
+                              dplyr::ungroup() -> case.path
+                            
+                            tables$profile.case <<- tables$profile.case %>% left_join(case.path, by = 'caseID')
+                            
                             cat('Done!', '\n')
                           }
-                          return(tables$case.path)
+                          return(tables$profile.case %>% select(caseID, path, loops, transCount, duration, completed))
                         },
 
                         # returns the Case Status Time (CST) matrix containing amount of time each case spent on each status. NA means the case never met the status
@@ -480,17 +462,17 @@ TRANSYS = setRefClass('TRANSYS',
                             if(measure %in% c('totLoops', 'avgLoops', 'medLoops')){get.case.path()}
                             switch(measure,
                                    'freq' = {metricval = length(get.cases()) %>% as.integer},
-                                   'totTT' = {metricval = tables$case.info[get.cases(), 'duration'] %>% sum(na.rm = T)},
-                                   'avgTT' = {metricval = tables$case.info[get.cases(), 'duration'] %>% mean(na.rm = T)},
-                                   'sdTT' = {metricval = tables$case.info[get.cases(), 'duration'] %>% sd(na.rm = T)},
-                                   'medTT' = {metricval = tables$case.info[get.cases(), 'duration'] %>% median(na.rm = T)},
+                                   'totTT' = {metricval = tables$profile.case[get.cases(), 'duration'] %>% sum(na.rm = T)},
+                                   'avgTT' = {metricval = tables$profile.case[get.cases(), 'duration'] %>% mean(na.rm = T)},
+                                   'sdTT' = {metricval = tables$profile.case[get.cases(), 'duration'] %>% sd(na.rm = T)},
+                                   'medTT' = {metricval = tables$profile.case[get.cases(), 'duration'] %>% median(na.rm = T)},
                                    'totLoops' = {metricval = tables$case.path[get.cases(), 'loops'] %>% sum(na.rm = T) %>% as.integer},
                                    'avgLoops' = {metricval = tables$case.path[get.cases(), 'loops'] %>% mean(na.rm = T)},
                                    'medLoops' = {metricval = tables$case.path[get.cases(), 'loops'] %>% median(na.rm = T) %>% as.integer},
                                    'totTrans' = {metricval = tables$case.path[get.cases(), 'transCount'] %>% sum(na.rm = T) %>% as.integer},
                                    'avgTrans' = {metricval = tables$case.path[get.cases(), 'transCount'] %>% mean(na.rm = T)},
-                                   'totComp' = {metricval = (tables$case.info[get.cases(), 'caseStart'] &  tables$case.info[get.cases(), 'caseEnd']) %>% sum(na.rm = T) %>% as.integer},
-                                   'avgComp' = {metricval = (tables$case.info[get.cases(), 'caseStart'] &  tables$case.info[get.cases(), 'caseEnd']) %>% mean(na.rm = T)}
+                                   'totComp' = {metricval = (tables$profile.case[get.cases(), 'caseStart'] &  tables$profile.case[get.cases(), 'caseEnd']) %>% sum(na.rm = T) %>% as.integer},
+                                   'avgComp' = {metricval = (tables$profile.case[get.cases(), 'caseStart'] &  tables$profile.case[get.cases(), 'caseEnd']) %>% mean(na.rm = T)}
                             )
                             metrics[[measure]] <<- metricval
                           }
@@ -515,9 +497,9 @@ TRANSYS = setRefClass('TRANSYS',
                         # totExitFreq: Total count of transitions from this status to other statuses
                         get.nodes = function(full = F){
                           if(full){
-                            if(!is.empty(nodes.full)){return(nodes.full)} else {H = history}
+                            if(!is.empty(tables$nodes)){return(tables$nodes)} else {H = history}
                           } else {
-                            if(!is.empty(nodes)){return(nodes)} else {H = history %>% dplyr::filter(selected)}
+                            if(!is.empty(report$nodes)){return(report$nodes)} else {H = history %>% dplyr::filter(selected)}
                           }
 
                           cat('\n', 'Aggregating nodes ...')
@@ -541,8 +523,8 @@ TRANSYS = setRefClass('TRANSYS',
                           }
                           nsel = sum(history$selected)
                           nrow = nrow(history)
-                          if(full  | nsel == nrow){nodes.full <<- D.node}
-                          if(!full | nsel == nrow){nodes <<- D.node}
+                          if(full  | nsel == nrow){tables$nodes <<- D.node}
+                          if(!full | nsel == nrow){report$nodes <<- D.node}
                           if(is.empty(D.node)){
                             data.frame(status = character(), totalEntryFreq = numeric(), totalExitFreq = numeric(), totalDuration = numeric(), meanDuration = numeric(), medDuration = numeric(), sdDuration = numeric(), stringsAsFactors = F) %>% as_tibble -> D.node
                           }
@@ -552,9 +534,9 @@ TRANSYS = setRefClass('TRANSYS',
 
                         get.links = function(full = F){
                           if(full){
-                            if(!is.empty(links.full)){return(links.full)} else {H = history}
+                            if(!is.empty(tables$links)){return(tables$links)} else {H = history}
                           } else {
-                            if(!is.empty(links)){return(links)} else {H = history %>% dplyr::filter(selected)}
+                            if(!is.empty(report$links)){return(report$links)} else {H = history %>% dplyr::filter(selected)}
                           }
 
                           cat('\n', 'Aggregating links ...')
@@ -579,8 +561,8 @@ TRANSYS = setRefClass('TRANSYS',
                           nsel = sum(history$selected)
                           nrow = nrow(history)
 
-                          if(full  | nsel == nrow){links.full <<- C.edge}
-                          if(!full | nsel == nrow){links <<- C.edge}
+                          if(full  | nsel == nrow){tables$links <<- C.edge}
+                          if(!full | nsel == nrow){report$links <<- C.edge}
                           cat('Done!', '\n')
                           return(C.edge)
                         },
@@ -667,30 +649,22 @@ TRANSYS = setRefClass('TRANSYS',
                         },
 
                         get.statuses = function(full = F){
-                          if(full){
-                            if(is.empty(statuses.full)){
-                              statuses.full <<- unique(c(history$status, history$nextStatus))
+                          if(full){return(tables$profile.status$status)}
+                          else {
+                            if(is.empty(report$statuses)){
+                              report$statuses <<- history$status[history$selected] %U% history$nextStatus[history$selected]
                             }
-                            return(statuses.full)
-                          } else {
-                            if(is.empty(statuses)){
-                              statuses <<- history$status[history$selected] %U% history$nextStatus[history$selected]
-                            }
-                            return(statuses)
+                            return(report$statuses)
                           }
                         },
 
                         get.cases = function(full = F){
-                          if(full){
-                            if(is.empty(caseIDs.full)){
-                              caseIDs.full <<- unique(history$caseID)
+                          if(full){return(tables$profile.case$caseID)}
+                          else {
+                            if(is.empty(report$caseIDs)){
+                              report$caseIDs <<- unique(history[history$selected, 'caseID'])
                             }
-                            return(caseIDs.full)
-                          } else {
-                            if(is.empty(caseIDs)){
-                              caseIDs <<- unique(history[history$selected, 'caseID'])
-                            }
-                            return(caseIDs)
+                            return(report$caseIDs)
                           }
                         },
 
@@ -739,23 +713,38 @@ TRANSYS = setRefClass('TRANSYS',
                             return(report$longest_path)
                         },
                         
-                        feed.case.features = function(cf, caseID_col = 'caseID'){
-                          fnames = colnames(cf) %-% caseID_col
-                          common_features = tables$case.features %>% colnames %>% intersect(fnames)
+                        get.transition_probabilities = function(){
+                          if(is.null(report$transition_probabilities)){
+                            get.links() %>% 
+                              select(status, nextStatus, totalFreq) %>%
+                              arrange(status, nextStatus) %>%
+                              group_by(status) %>%
+                              mutate(cum_freq = cumsum(totalFreq)) %>%
+                              mutate(cum_prob = cum_freq/sum(totalFreq)) %>% ungroup() %>%
+                              select(status, nextStatus, cum_prob) ->> report$transition_probabilities
+                          }
+                          return(report$transition_probabilities)
+                        },
+                        
+                        feed.case_features = function(cf, caseID_col = 'caseID', features = NULL){
+                          caseID_col %<>% verify('character', domain = colnames(cf), lengths = 1, default = 'caseID')
+                          features %<>% verify('character', domain = colnames(cf), default = colnames(cf)) %-% c(caseID_col, 'caseID')
+                          common_features = tables$profile.case %>% colnames %>% intersect(features)
                           warnif(length(common_features) > 0, 'These features are overwritten: ' %++% common_features %++% '\n')
-                          tables$case.features %>% spark.unselect(fnames) %>% 
-                            left_join(cf %>% rename(caseID = caseID_col), by = 'caseID') ->> tables$case.features
+                          tables$profile.case %>% spark.unselect(features) %>% 
+                            left_join(cf %>% spark.select(caseID_col, features) %>% rename(caseID = caseID_col), by = 'caseID') ->> tables$profile.case
                         },
 
                         filter.reset = function(){
-                          if(nrow(history) > 0){history$selected <<- T}
-                          if(nrow(tables$case.features) > 0){tables$case.features$selected <<- T}
+                          if(!is.empty(history)){history$selected <<- T}
+                          if(!is.empty(tables$profile.transition)){tables$profile.transition$selected <<- T}
+                          if(!is.empty(tables$profile.case)){tables$profile.case$selected <<- T}
                           clear()
-                          caseIDs    <<- caseIDs.full
-                          statuses   <<- statuses.full
-                          nodes      <<- nodes.full
-                          links      <<- links.full
-                          timeseries <<- timeseries.full
+                          report$caseIDs  <<- tables$profile.case$caseID
+                          report$statuses <<- tables$profile.status$status
+                          report$nodes    <<- tables$nodes
+                          report$links    <<- tables$links
+                          timeseries      <<- timeseries.full
                           settings$filter <<- list()
                         },
                         
@@ -766,12 +755,13 @@ TRANSYS = setRefClass('TRANSYS',
 
                         filter.case = function(complete = NULL, minLoops = NULL, maxLoops = NULL, statusDomain = NULL, startStatuses = NULL, endStatuses = NULL, IDs = NULL, freqThreshold = NULL, reset = T){
                           if(reset){filter.reset()}
+                          
                           if(nrow(history) > 0){
                             if(!is.null(complete %>% verify('logical'))){
-                              chosen = tables$case.info$caseStart & tables$case.info$caseEnd
+                              chosen = tables$profile.case$caseStart & tables$profile.case$caseEnd
                               if(!complete){chosen = !chosen}
-                              caseIDs <<- get.cases() %^% rownames(tables$case.info)[chosen]
-                              history$selected <<- history$caseID %in% caseIDs
+                              report$caseIDs <<- get.cases() %^% rownames(tables$profile.case)[chosen]
+                              history$selected <<- history$caseID %in% report$caseIDs
                               settings$filter$complete <<- complete
                             }
 
@@ -780,40 +770,41 @@ TRANSYS = setRefClass('TRANSYS',
                               if(is.null(minLoops)){minLoops = min(cp$loops, na.rm = T)}
                               if(is.null(maxLoops)){maxLoops = max(cp$loops, na.rm = T)}
                               chosen = cp$loops >= minLoops & cp$loops <= maxLoops
-                              caseIDs <<- get.cases() %^% rownames(cp)[chosen]
-                              history$selected <<- history$caseID %in% caseIDs
+                              report$caseIDs <<- get.cases() %^% rownames(cp)[chosen]
+                              history$selected <<- history$caseID %in% report$caseIDs
                               settings$filter$minLoops <<- minLoops
                               settings$filter$maxLoops <<- maxLoops
                             }
 
                             if(!is.null(statusDomain)){
                               history$selected <<- history$selected & (history$status %in% statusDomain)
-                              caseIDs         <<- history$caseID[history$selected] %>% unique
+                              report$caseIDs   <<- history$caseID[history$selected] %>% unique
                               settings$filter$statusDomain <<- statusDomain
                             }
 
                             if(!is.null(startStatuses %>% verify('character'))){
                               cp      = get.case.path()
                               chosen  = cp$startStatus %in% startStatuses
-                              caseIDs <<- get.cases() %^% rownames(cp)[chosen]
-                              history$selected <<- history$caseID %in% caseIDs
+                              report$caseIDs <<- get.cases() %^% rownames(cp)[chosen]
+                              history$selected <<- history$caseID %in% report$caseIDs
                               settings$filter$startStatuses <<- startStatuses
                             }
 
                             if(!is.null(endStatuses %>% verify('character'))){
                               cp      = get.case.path()
                               chosen  = cp$endStatus %in% endStatuses
-                              caseIDs <<- get.cases() %^% rownames(cp)[chosen]
-                              history$selected <<- history$caseID %in% caseIDs
+                              report$caseIDs <<- get.cases() %^% rownames(cp)[chosen]
+                              history$selected <<- history$caseID %in% report$caseIDs
                               settings$filter$endStatuses <<- endStatuses
                             }
 
                             if(!is.null(IDs %>% verify('character'))){
-                              caseIDs <<- caseIDs %^% IDs
+                              report$caseIDs <<- report$caseIDs %^% IDs
                               settings$filter$IDs <<- IDs
                             }
 
-                            history$selected <<- history$caseID %in% caseIDs
+                            history$selected <<- history$caseID %in% report$caseIDs
+                            
 
                             if(!is.null(freqThreshold %>% verify(c('numeric','integer'), domain = c(0, 1), lengths = 1))){
                               adjcy = get.adjacency()
@@ -824,13 +815,14 @@ TRANSYS = setRefClass('TRANSYS',
                                 histsel  <- history[history$selected, ]
                                 histsel  <- histsel[histsel$path %in% (paths$status %++% '-' %++% paths$nextStatus),]
                                 outliers <- histsel$caseID %>% unique
-                                caseIDs <<- caseIDs %-% outliers
-                                history$selected <<- history$caseID %in% caseIDs
+                                report$caseIDs <<- report$caseIDs %-% outliers
+                                history$selected <<- history$caseID %in% report$caseIDs
                                 settings$filter$freqThreshold <<- freqThreshold
                               }
                             }
                             
-                            tables$case.filter$selected <<- tables$case.filter$caseID %in% caseIDs
+                            tables$profile.case$selected <<- tables$profile.case$caseID %in% report$caseIDs
+                            if(!is.empty(tables$profile.transition)){tables$profile.transition$selected <<- tables$profile.transition$caseID %in% report$caseIDs}
                             
                             clear()
                           }
@@ -915,7 +907,7 @@ simulate.TRANSYS_old <- function(obj, start_dt, target_dt, transition_classifier
 simulate.TRANSYS <- function(obj, start_dt, target_dt, event_generator = gen_next_events, time_generator = gen_transition_times, ...){
   start_dt     <- as.time(start_dt)
   target_dt    <- as.time(target_dt)
-  final_events <- tibble(status = character(), startTime = empt, nextStatus = character(), nxtTrTime = empt)
+  final_events <- tibble(caseID = character(), status = character(), startTime = empt, nextStatus = character(), nxtTrTime = empt)
   
   current_backlog = obj$history %>% filter(selected) %>% filter(startTime < start_dt) %>% as.tbl() %>%  
     group_by(caseID) %>% filter(startTime == max(startTime)) %>% ungroup %>% 
@@ -924,11 +916,16 @@ simulate.TRANSYS <- function(obj, start_dt, target_dt, event_generator = gen_nex
   
   new_starts = obj$history %>% filter(selected) %>% filter(startTime > start_dt, startTime < target_dt, status == 'START') %>% select(caseID, status, startTime) %>% as.tbl()
   
-  historical_data <- obj$history %>% filter(selected) %>% filter(startTime < start_dt) %>% as.tbl() %>%  select(caseID, status, startTime) %>% unique
-  if(is.empty(historical_data)) return(final_events)
+  # historical_data <- obj$history %>% filter(selected) %>% filter(startTime < start_dt) %>% as.tbl() %>%  select(caseID, status, startTime) %>% unique
+  # if(is.empty(historical_data)) return(final_events)
   
-  histobj <- new('TRANSYS')
-  suppressWarnings({histobj$feed.eventlog(historical_data, caseStartTags = 'START', add_start = F)})
+  # histobj <- new('TRANSYS')
+  # suppressWarnings({histobj$feed.eventlog(historical_data, caseStartTags = 'START', add_start = F)})
+  histobj = obj$copy()
+  histobj$history %<>% filter(endTime < start_dt)
+  histobj$filter.reset()
+  # todo: update tables and reports 
+  if(is.empty(histobj$history)) return(final_events)
   
   # start simulation: 
   tracking <- rbind(current_backlog, new_starts)
