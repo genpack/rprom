@@ -219,7 +219,7 @@ plot.cases.table = function(obj, time_unit = c('second', 'minute', 'hour', 'day'
   time_unit = match.arg(time_unit)
   k         = 1.0/timeUnitCoeff[time_unit]
 
-  tbl = obj$cases$profile[obj$get.cases(), ]
+  tbl = obj$tables$profile.case[obj$get.cases(), ]
   tbl$completed = tbl$caseStart & tbl$caseEnd
   tbl$duration = (k*tbl$duration) %>% round(digits = 2)
 
