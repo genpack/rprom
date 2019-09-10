@@ -7,8 +7,8 @@
 # Author:        Nicolas Berta
 # Email :        nicolas.berta@gmail.com
 # Start Date:    08 November 2016
-# Last Revision: 08 August 2019
-# Version:       0.8.2
+# Last Revision: 09 September 2019
+# Version:       0.8.6
 
 # Version   Date               Action
 # -----------------------------------
@@ -42,7 +42,11 @@
 # 0.7.5     21 June 2019       Function TRANSYS.summary() modified: A minor bug was fixed.
 # 0.7.9     09 July 2019       Function TRANSYS.simulate() added, methods get.mldata.tc(), get.time.status.volume() added, Some method names changed, property 'cases' embedded in 'tables' 
 # 0.8.1     16 July 2019       Method filter.event() added, argument 'extra_col' added to feed.eventlog()
-# 0.8.2     08 August 2019    Method simulate.TRANSYS() modified
+# 0.8.2     08 August 2019     Method simulate.TRANSYS() modified
+# 0.8.3     20 August 2019     Method simulate.TRANSYS() modified: progressbar added.
+# 0.8.4     20 August 2019     Method feed.eventlog() modified: remove_sst bug rectified: now updates startTime
+# 0.8.5     09 September 2019  Method feed.eventlog() modified: adds new events to the existing history.
+# 0.8.6     09 September 2019  Generic function simulate.TRANSYS() transfered as method run.simulate().
 
 # Good information for working with R functions:
 # http://adv-r.had.co.nz/Functions.html
@@ -104,7 +108,7 @@ TRANSYS = setRefClass('TRANSYS',
                                                  selected = logical(), startDate = empd, endDate = empd, creation = empt, duration = numeric(), eventAge = numeric(), path = character(),
                                                  stringsAsFactors = F)
                           tables$profile.case <<- data.frame(caseID = character(), firstStatus = character(), lastStatus = character(), startTime = empt, endTime = empt, caseStart = logical(), caseEnd = logical(), duration = numeric(),
-                                                       stringsAsFactors = F)
+                                                 stringsAsFactors = F)
 
                           modelStart <<- start %>% as.time
                           modelEnd   <<- end %>% as.time
@@ -148,6 +152,7 @@ TRANSYS = setRefClass('TRANSYS',
                             if(is.null(caseStartTags)){dataset$caseStart = T} else {
                               startedcases = dataset$caseID[dataset$status %in% caseStartTags] %>% unique
                               dataset$caseStart = dataset$caseID %in% startedcases}}
+                          
                           if(is.null(dataset$caseEnd)){
                             if(is.null(caseEndTags)){dataset$caseEnd = T} else {
                               endedcases = dataset$caseID[dataset$status %in% caseEndTags] %>% unique
@@ -170,36 +175,51 @@ TRANSYS = setRefClass('TRANSYS',
                             dp = which(!duplicated(dataset$caseID))
                             endindx = c(dp[-1] - 1, nrow(dataset))
                           }
-
+                          
                           dataset[dp, c('caseID', 'startTime', 'status', 'caseStart', 'caseEnd')] %>%
                             inner_join(dataset[endindx, c('caseID', 'endTime', 'nextStatus')], by = 'caseID') %>%
                             dplyr::select(caseID, firstStatus = status, lastStatus = nextStatus, startTime, endTime, caseStart, caseEnd) %>%
                             dplyr::mutate(duration = as.numeric(endTime - startTime), completed = caseStart & caseEnd, selected = T) %>% 
-                            {rownames(.)<-.$caseID;.} ->> tables$profile.case
-
-                          if(remove_sst){dataset = dataset[dataset$status != dataset$nextStatus, ]}
+                            {rownames(.)<-.$caseID;.} -> tables.profile.case
                           
+                          if(remove_sst){
+                            dataset = dataset[dataset$status != dataset$nextStatus, ] 
+                            dpinv   = duplicated(dataset$caseID) %>% which
+                            dataset$startTime[dpinv] <- dataset$endTime[dpinv - 1]
+                            # dp = which(!duplicated(dataset$caseID))
+                          }
+
                           dataset %<>%
                             mutate(startDate = startTime %>% as_date,
                                    endDate   = endTime   %>% as_date)
 
-                          tables$profile.status <<- data.frame(status = as.character(dataset$status %U% dataset$nextStatus)) %>% {rownames(.)<-.$status;.}
-                          report$caseIDs       <<- tables$profile.case$caseID
-                          report$statuses      <<- tables$profile.status$status
+                          tables.profile.status <- data.frame(status = as.character(dataset$status %U% dataset$nextStatus)) %>% {rownames(.)<-.$status;.}
+                          report.caseIDs        <- tables.profile.case$caseID
+                          report.statuses       <- tables.profile.status$status
 
                           cs = as.character(dataset$caseID)
 
-                          dataset$creation   <- tables$profile.case[cs, 'startTime']
+                          dataset$creation   <- tables.profile.case[cs, 'startTime']
                           dataset$duration   <- as.numeric(dataset$endTime - dataset$startTime)
                           dataset$eventAge   <- as.numeric(dataset$startTime - dataset$creation)
 
                           dataset$selected = TRUE
                           dataset$path     = dataset$status %++% '-' %++% dataset$nextStatus
-
-                          history <<- dataset
+ 
+                          if(is.empty(history)){
+                            history <<- dataset
+                            tables$profile.case <<- tables.profile.case
+                            report$caseIDs      <<- report.caseIDs
+                            report$statuses     <<- report.statuses
+                          } else {
+                            history <<- dplyr::bind_rows(history, dataset)
+                            tables$profile.case <<- dplyr::bind_rows(tables$profile.case, tables.profile.case) 
+                            report$caseIDs      <<- c(report$caseIDs, report.caseIDs) %>% unique
+                            report$statuses     <<- c(report$statuses, report.statuses) %>% unique
+                          }
                           
-                          if(is.empty(modelStart)){modelStart <<- min(history$startTime)}
-                          if(is.empty(modelEnd)){modelEnd     <<- max(history$endTime)}
+                          if(is.empty(modelStart)){modelStart <<- min(history$startTime)} else {modelStart <<- min(history$startTime, modelStart)}
+                          if(is.empty(modelEnd)){modelEnd     <<- max(history$endTime)} else {modelEnd <<- max(history$endTime, modelEnd)}
 
                           filter.case(complete = settings$filter$complete, minLoops = settings$filter$minLoops, maxLoops = settings$filter$maxLoops, IDs = settings$filter$IDs, startStatuses = settings$filter$startStatuses, endStatuses = settings$filter$endStatuses, freqThreshold = settings$filter$freqThreshold)
                         },
@@ -837,7 +857,61 @@ TRANSYS = setRefClass('TRANSYS',
                         casesInTransition = function(source, target){
                           casedf  = history %>% filter(selected) %>% filter(path == source %++% '-' %++% target) %>% extract('caseID') %>% unique
                           return(casedf$caseID)
+                        },
+                        
+                        run.simulation = function(start_dt, target_dt, new_starts = NULL, event_generator = gen_next_events, time_generator = gen_transition_times, silent = T, ...){
+                          start_dt     <- as.time(start_dt)
+                          target_dt    <- as.time(target_dt)
+                          final_events <- tibble(caseID = character(), status = character(), startTime = empt, nextStatus = character(), nxtTrTime = empt)
+                          
+                          
+                          if(is.null(new_starts)){
+                            current_backlog = history %>% filter(selected) %>% filter(startTime < start_dt) %>% as.tbl() %>%  
+                              group_by(caseID) %>% filter(startTime == max(startTime)) %>% ungroup %>% 
+                              filter(nextStatus != 'END') %>% 
+                              select(caseID, status, startTime) %>% arrange(caseID, startTime)
+                            new_starts = history %>% filter(selected) %>% filter(startTime > start_dt, startTime < target_dt, status == 'START') %>% select(caseID, status, startTime) %>% as.tbl()
+                          } else {
+                            current_backlog = NULL
+                          }
+                          
+                          # historical_data <- history %>% filter(selected) %>% filter(startTime < start_dt) %>% as.tbl() %>%  select(caseID, status, startTime) %>% unique
+                          # if(is.empty(historical_data)) return(final_events)
+                          
+                          # histobj <- new('TRANSYS')
+                          # suppressWarnings({histfeed.eventlog(historical_data, caseStartTags = 'START', add_start = F)})
+                          histobj = copy(.self)
+                          histobj$history %<>% filter(endTime < start_dt)
+                          histobj$filter.reset()
+                          # todo: update tables and reports 
+                          if(is.empty(histobj$history)) return(final_events)
+                          
+                          # start simulation: 
+                          tracking <- rbind(current_backlog, new_starts)
+                          if(!silent){cnt = 1}
+                          
+                          while(nrow(tracking) > 0){
+                            tracking <- event_generator(tracking, histobj = histobj, ...) %>% 
+                              time_generator(histobj = histobj, start_dt = start_dt, new_events = final_events, ...)
+                            
+                            final_events <- rbind(final_events, tracking)
+                            # extract completed events and those that wont be completed before target_dt
+                            # remove those rows from tracking and update
+                            tracking %<>% 
+                              filter(!(nextStatus == "End" | nxtTrTime > target_dt)) %>%
+                              transmute(caseID, status = nextStatus, startTime = nxtTrTime)
+                            
+                            if(!silent){
+                              if(nrow(tracking) > 0)
+                                cat('iter: ', cnt, ' Time range from ', as.character(min(tracking$startTime)), ' to ', as.character(max(tracking$startTime)), '\n')
+                              cnt = cnt + 1
+                            }
+                          }
+                          if(!silent){cat('No more transitions (End of simulation)', '\n')}
+                          
+                          final_events %>% arrange(caseID, startTime)
                         }
+                        
 
                       )
 )
@@ -866,81 +940,4 @@ summary.TRANSYS = function(obj){
     " filtered). Filter settings: ",
     chif(is.empty(ff), 'No filtering applied', names(ff) %>% paste(":") %>% paste(ff, collapse = ' , ')))
   # "32,400 filtered) and 24 statuses (13 filtered) impacting 2,450 cases (83 filtered). Filter on completed cases with relative frequency threshold of 0.25 and loops range between 0 and 12"
-}
-
-simulate.TRANSYS_old <- function(obj, start_dt, target_dt, transition_classifier = markovchain_transition_classifier, transition_time_estimator = markovchain_transition_time_estimator){
-  start_dt     <- as.time(start_dt)
-  target_dt    <- as.time(target_dt)
-  final_events <- tibble()
-  
-  current_backlog = obj$history %>% filter(selected) %>% filter(startTime < start_dt) %>% as.tbl() %>%  
-    group_by(caseID) %>% filter(startTime == max(startTime)) %>% ungroup %>% 
-    filter(nextStatus != 'END') %>% 
-    select(caseID, status, startTime) %>% arrange(caseID, startTime)
-  
-  new_starts = obj$history %>% filter(selected) %>% filter(startTime > start_dt, startTime < target_dt, status == 'START') %>% select(caseID, status, startTime) %>% as.tbl()
-  
-  historical_data <- obj$history %>% filter(selected) %>% filter(startTime < start_dt) %>% as.tbl() %>%  select(caseID, status, startTime) %>% unique
-  if(is.empty(historical_data)) return(final_events)
-  
-  histobj <- TRANSYS()
-  suppressWarnings({histobj$feed.eventlog(historical_data, caseStartTags = 'START', add_start = F)})
-  
-  # start simulation: 
-  tracking <- rbind(current_backlog, new_starts)
-  
-  while(nrow(tracking) > 0) {
-    tracking <- gen_next_events(tracking, histobj, transition_classifier) %>% 
-      gen_transition_times(obj = histobj, start_dt = start_dt, transition_time_estimator = transition_time_estimator)
-    # extract completed events and those that wont be completed before target_dt
-    final_events <- rbind(final_events, tracking)
-    # remove those rows from tracking and update
-    tracking %<>% 
-      filter(!(nextStatus == "End" | nxtTrTime > target_dt)) %>%
-      transmute(caseID, status = nextStatus, startTime = nxtTrTime)
-  }
-  
-  final_events %>% arrange(caseID, startTime)
-}
-
-#' @export
-simulate.TRANSYS <- function(obj, start_dt, target_dt, event_generator = gen_next_events, time_generator = gen_transition_times, ...){
-  start_dt     <- as.time(start_dt)
-  target_dt    <- as.time(target_dt)
-  final_events <- tibble(caseID = character(), status = character(), startTime = empt, nextStatus = character(), nxtTrTime = empt)
-  
-  current_backlog = obj$history %>% filter(selected) %>% filter(startTime < start_dt) %>% as.tbl() %>%  
-    group_by(caseID) %>% filter(startTime == max(startTime)) %>% ungroup %>% 
-    filter(nextStatus != 'END') %>% 
-    select(caseID, status, startTime) %>% arrange(caseID, startTime)
-  
-  new_starts = obj$history %>% filter(selected) %>% filter(startTime > start_dt, startTime < target_dt, status == 'START') %>% select(caseID, status, startTime) %>% as.tbl()
-  
-  # historical_data <- obj$history %>% filter(selected) %>% filter(startTime < start_dt) %>% as.tbl() %>%  select(caseID, status, startTime) %>% unique
-  # if(is.empty(historical_data)) return(final_events)
-  
-  # histobj <- new('TRANSYS')
-  # suppressWarnings({histobj$feed.eventlog(historical_data, caseStartTags = 'START', add_start = F)})
-  histobj = obj$copy()
-  histobj$history %<>% filter(endTime < start_dt)
-  histobj$filter.reset()
-  # todo: update tables and reports 
-  if(is.empty(histobj$history)) return(final_events)
-  
-  # start simulation: 
-  tracking <- rbind(current_backlog, new_starts)
-  
-  while(nrow(tracking) > 0){
-    tracking <- event_generator(tracking, histobj = histobj, ...) %>% 
-      time_generator(histobj = histobj, start_dt = start_dt, new_events = final_events, ...) %>% 
-      arrange(desc(startTime))
-    final_events <- rbind(final_events, tracking)
-    # extract completed events and those that wont be completed before target_dt
-    # remove those rows from tracking and update
-    tracking %<>% 
-      filter(!(nextStatus == "End" | nxtTrTime > target_dt)) %>%
-      transmute(caseID, status = nextStatus, startTime = nxtTrTime)
-  }
-  
-  final_events %>% arrange(caseID, startTime)
 }
