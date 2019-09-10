@@ -6,8 +6,8 @@
 # Author:         Nicolas Berta
 # Email :         nicolas.berta@gmail.com
 # Start Date:     06 July 2018
-# Last Revision:  08 August 2019
-# Version:        0.0.7
+# Last Revision:  09 September 2019
+# Version:        0.0.8
 #
 
 # Version History:
@@ -17,6 +17,7 @@
 # 0.0.1     06 July 2018      Initial issue
 # 0.0.2     16 October 2018   Function buildProcessMapPackage() modified: argument linkLabel added
 # 0.0.7     08 August 2019    Functions markovchain_transition_classifier(), markovchain_transition_time_estimator(), gen_next_events(), gen_transition_times() , gen_transition_times_exp()  modified: argument linkLabel added
+# 0.0.8     09 September 2019 Functions gen_next_events() modified: grouping should be done before generating a random value.
 
 buildProcessMapPackage = function(obj, nodeSize = 'totalEntryFreq', nodeColor = 'totalEntryFreq', linkColor = 'totalFreq', linkWidth = 'totalFreq', linkLabel = NULL, linkLength = NULL, config = NULL){
   # todo: build tooltip, link label
@@ -109,9 +110,9 @@ markovchain_transition_time_estimator = function(histobj, input, start_dt, ...){
 # Default next events generator
 gen_next_events <- function(input, histobj, transition_classifier = markovchain_transition_classifier, ...) {
   transition_classifier(histobj = histobj, input = input, ...) %>% 
-    mutate(rand_var = runif(n())) %>%
+    group_by(caseID, status) %>% 
+    mutate(rand_var = runif(1)) %>%
     filter(rand_var < cum_prob) %>%
-    group_by(caseID, status) %>% # can be altered
     filter(cum_prob == min(cum_prob)) %>%
     ungroup() %>%
     select(caseID, status, nextStatus, startTime)
@@ -131,8 +132,3 @@ gen_transition_times_exp = function(input, transition_durations, start_dt, ...){
     left_join(transition_durations, by = c("status", "nextStatus")) %>% na.omit %>%
     mutate(nxtTrTime = startTime + gen.random.cond(N = n(), family = 'exp', rate = 1.0/meanTime, x0 = as.numeric(start_dt - startTime)))
 }
-
-
-
-
-
