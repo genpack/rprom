@@ -12,9 +12,9 @@
 #' @include tstools.R
 #' @include tsvis.R
 
-# Current Version: 1.7.8
+# Current Version: 1.8.3
 # Issue Date: 08 November 2016
-# Last Issue: 08 August 2019
+# Last Issue: 09 September 2019
 
 # Version     Date                 Action
 # ----------------------------------
@@ -56,7 +56,9 @@
 # 1.7.0       09 July 2019         transys.R changed to version 0.7.9
 # 1.7.2       16 July 2019         transys.R changed to version 0.8.1
 # 1.7.7       08 August 2019       tstools.R changed to version 0.0.7
-# 1.7.8       08 August 2019       transys.R changed to version 0.8.2
+# 1.7.9       20 August 2019       transys.R changed to version 0.8.3
+# 1.8.0       9 September 2019     tstools.R changed to version 0.0.8
+# 1.8.3       9 September 2019     transys.R changed to version 0.8.6
 
 
 
