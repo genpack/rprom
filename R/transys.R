@@ -863,11 +863,10 @@ TRANSYS = setRefClass('TRANSYS',
                           start_dt     <- as.time(start_dt)
                           target_dt    <- as.time(target_dt)
                           final_events <- tibble(caseID = character(), status = character(), startTime = empt, nextStatus = character(), nxtTrTime = empt)
-                          
-                          
+
                           if(is.null(new_starts)){
                             current_backlog = history %>% filter(selected) %>% filter(startTime < start_dt) %>% as.tbl() %>%  
-                              group_by(caseID) %>% filter(startTime == max(startTime)) %>% ungroup %>% 
+                              group_by(caseID) %>% filter(startTime == max(startTime)) %>% ungroup %>% distinct(caseID, .keep_all = T) %>% 
                               filter(nextStatus != 'END') %>% 
                               select(caseID, status, startTime) %>% arrange(caseID, startTime)
                             new_starts = history %>% filter(selected) %>% filter(startTime > start_dt, startTime < target_dt, status == 'START') %>% select(caseID, status, startTime) %>% as.tbl()
@@ -880,7 +879,7 @@ TRANSYS = setRefClass('TRANSYS',
                           
                           # histobj <- new('TRANSYS')
                           # suppressWarnings({histfeed.eventlog(historical_data, caseStartTags = 'START', add_start = F)})
-                          histobj = copy(.self)
+                          histobj = .self$copy()
                           histobj$history %<>% filter(endTime < start_dt)
                           histobj$filter.reset()
                           # todo: update tables and reports 
@@ -898,7 +897,7 @@ TRANSYS = setRefClass('TRANSYS',
                             # extract completed events and those that wont be completed before target_dt
                             # remove those rows from tracking and update
                             tracking %<>% 
-                              filter(!(nextStatus == "End" | nxtTrTime > target_dt)) %>%
+                              filter(!(nextStatus == "END" | nxtTrTime > target_dt)) %>%
                               transmute(caseID, status = nextStatus, startTime = nxtTrTime)
                             
                             if(!silent){
