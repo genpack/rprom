@@ -11,6 +11,71 @@ buildTimeSeasonalityFeatures = function(obj){}
 
 buildTimeStatusVolumeFeatures = function(obj){}
 
+TRANSPORT.plotJourney = function(obj, by_status = F, journey = T, incident = F, scheduled = F, simulation = F, group = F){
+  
+  if(by_status){
+    obj$get.traces() %>% pull(path) %>% strsplit('-') -> a
+    if(length(a) > 0){
+      lvls = a[[a %>% lapply(length) %>% unlist %>% order %>% tail(1)]]
+      lvls = ifelse(lvls %in% c('START', 'END'), lvls, substr(lvls, 5, nchar(lvls))) %>% unique
+
+      obj$history %>% filter(selected) %>% 
+        mutate(station = factor(status, levels = lvls)) %>% 
+        plot_ly(type = 'scatter', x = ~startTime, y = ~status, color = ~caseID, mode = 'lines+markers')
+    }  
+    #   wide = obj$get.status.case.time()
+    #   
+    #   wide %>% mutate(status = rownames(.)) %>% 
+    #     mutate(station = ifelse(status %in% c('START', 'END'), status, substr(status, 5, nchar(status)))) %>% 
+    #     mutate(station = factor(station, levels = lvls)) %>% arrange(station) %>% 
+    #     viserPlot(x = 'station', y = colnames(wide) %>% as.list, plotter = 'plotly', type = 'combo', shape = 'line.point')
+    # } else {cat('\n', 'Empty object! Nothing plotted.', '\n')}
+  } 
+  else {
+
+    if (journey){
+      obj$history %>% filter(selected) %>% 
+        select(caseID, startTime, station) %>% mutate(type = 'Journey') -> tbl
+    } else {tbl = NULL}
+
+    if(incident){
+      obj$get.incidents() %>%  
+        select(time_from, st_from, st_to, incid, inctype) %>% 
+        mutate(incid = paste0(incid, ' (', inctype, ')')) -> inc
+      
+      inc %>% select(caseID = incid, startTime = time_from, station = st_from) %>% 
+        rbind(inc %>% select(caseID = incid, startTime = time_from, station = st_to)) %>% 
+        arrange(caseID, startTime) %>% unique %>% mutate(type = 'Incident') %>% rbind(tbl) -> tbl
+    }
+    
+    if(simulation & (!is.null(obj$objects$sim))){
+      obj$objects$sim$history %>% filter(selected) %>% left_join(obj$get.station_map(), by = 'status') %>% 
+        # mutate(caseID = paste0('SIM (', caseID, ')')) %>% 
+        select(caseID, startTime, station) %>% mutate(type = 'Simulation') %>% rbind(tbl) -> tbl
+    }
+    
+    if(scheduled & (!is.null(obj$objects$timetable))){
+      # obj$history %>% filter(status != 'START') %>% distinct(status, station) -> stmap
+      obj$objects$timetable$history %>% filter(selected) %>% 
+        # left_join(stmap, by = 'status') %>% 
+        # mutate(caseID = paste0('SIM (', caseID, ')')) %>% 
+        select(caseID, startTime, station) %>% mutate(type = 'Scheduled') %>% rbind(tbl) -> tbl
+    }
+    
+    tbl %>% 
+      mutate(station = factor(station, levels = obj$tables$profile.station %>% arrange(rank) %>% pull(station))) %>% 
+      group_by(caseID) %>% 
+      plot_ly(type = 'scatter', x = ~startTime, y = ~station, color = chif(group,~type, ~caseID), 
+              symbol = ~type, mode = 'lines+markers')
+  }
+}
+
+TRANSPORT.plotTimeline = function(obj){
+  tbl = obj$history %>% filter(selected) %>% select(start = startTime, content = status, end = endTime, group = TDN) %>% mutate(id = 1:nrow(.), type = 'range')
+  tblgrp = data.frame(id = unique(tbl$group)) %>% mutate(content = id)
+  timevis::timevis(data = tbl, groups = tblgrp)
+}
+
 
 # Generates random values with given distribution subject to being greater than x0
 # If you want to generate N random values with a distribution specified by cdf F(x) given that x > x0,
