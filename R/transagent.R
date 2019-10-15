@@ -432,3 +432,144 @@ TRANSAGENT = setRefClass(
   )
 )
  
+
+
+
+
+
+
+
+EXPERIENCE = setRefClass(
+  'EXPERIENCE',
+  
+  fields = list(
+    objects  = 'list',
+    memory   = 'data.frame',
+    max_mem  = 'integer',
+    discount = 'numeric',
+    num_action  = 'integer',
+    num_state   = 'integer'),
+  
+  methods = list(
+    initialize = function(keras_model, max_memory = NULL, discount_rate = 0.95){
+      library(keras)
+      objects$model  <<- keras_model
+      
+      max_mem     <<- max_memory    %>% verify(c('numeric', 'integer'), lengths = 1, default = 100)  %>% as.integer
+      discount    <<- discount_rate %>% verify(c('numeric'), lengths = 1, domain = c(0,1), default = 0.95)
+      num_state   <<- get_input_shape_at(keras_model, node_index = 0)[[2]]
+      num_action  <<- get_output_shape_at(keras_model, node_index = 0)[[2]]
+    },
+    
+    remember = function(episode){
+      if((length(episode$previous_state) == num_state) & (length(episode$current_state) == num_state)){
+        nmem = nrow(memory)
+        if(nmem == 0){
+          memory      <<- matrix(numeric(2*num_state + 2), nrow = 1) %>% as.data.frame
+        }
+        memory[nmem + 1, 1:num_state]      <<- episode$previous_state
+        memory[nmem + 1, 1:num_state + num_state] <<- episode$current_state
+        memory[nmem + 1, 2*num_state + 1]  <<- episode$action 
+        memory[nmem + 1, 2*num_state + 2]  <<- episode$reward 
+        
+        if(length(memory) > max_mem){
+          memory <<- memory[-1, ]
+        }
+        memory <<- na.omit(memory)
+        # memory[is.na(memory)] <<- -1
+      }
+    },
+    
+    predict_actions = function(envstate){
+      predict(objects$model, envstate %>% matrix(nrow = 1) %>% data.matrix)
+    },
+    
+    get_training_data = function(data_size = 10){
+      mem_size  = nrow(memory)
+      data_size = min(mem_size, data_size)
+      memory_samples = mem_size %>% sequence %>% sample(size = data_size, replace = FALSE)
+      
+      inputs  = memory[memory_samples, 1:num_state] %>% as.matrix
+      targets = predict(objects$model, inputs) %>% as.matrix
+      
+      Q_val   = predict(objects$model, memory[memory_samples, num_state + (1:num_state)] %>% as.matrix) %>% apply(1, max)
+      
+      actions = memory[memory_samples, 2*num_state + 1] %>% as.integer
+      rewards = memory[memory_samples, 2*num_state + 2]
+      # targets[, actions] <- rewards + discount*Q_val
+      
+      for(i in sequence(data_size)){
+        targets[i, actions[i] + 1] <- rewards[i] + discount*Q_val[i]
+      }
+      return(list(inputs = inputs, targets = targets))
+    }
+  )
+)  
+
+
+
+jump = function(obj, experience, n_step = 100, show_progress = T){
+  
+  step       = 0
+  envstate   = obj$reduced_state()
+  if(show_progress){pb = txtProgressBar(min = 1, max = n_step, style = 3)}
+  
+  valid_acts    = obj$valid_actions()
+  while((length(valid_acts) > 0) & (step < n_step)){
+    prev_envstate = envstate
+    if(runif(1) < 0.05){
+      action = sample(0:5, size = 1)
+    } else {
+      action = experience$predict_actions(prev_envstate) %>% order(decreasing = T) %>% {.-1} %>% first
+    }
+    # Apply selected action, get reward and generate new envstate:
+    obj$take_action(action)
+    envstate = obj$reduced_state()
+    episode  = list(previous_state = prev_envstate, current_state = envstate, action = action, reward = obj$reward)
+    experience$remember(episode)
+    step = step + 1
+    valid_acts    = obj$valid_actions()
+    if(show_progress){
+      setTxtProgressBar(pb, step)
+      cat(' Step: ', step, ' Time: ', as.character(obj$now()))
+    }
+  }
+  return(step)
+}  
+
+
+qtrain = function(model, obj, parameters = list()){
+  n_epoch = parameters$n_epoch %>% verify(c('integer', 'numeric'), lengths = 1, default = 150) %>% as.integer
+  max_mem = parameters$max_mem %>% verify(c('integer', 'numeric'), lengths = 1, default = 10000)  %>% as.integer
+  dt_size = parameters$dt_size %>% verify(c('integer', 'numeric'), lengths = 1, default = 1000)  %>% as.integer
+  numstep = parameters$numstep %>% verify(c('integer', 'numeric'), lengths = 1, default = 100)  %>% as.integer
+  
+  experience = EXPERIENCE(keras_model = model, max_memory = max_mem)
+  
+  for(epoch in sequence(n_epoch)){
+    random_time = as.POSIXct(obj$cdate) + runif(1, 10000, 80000)
+    obj$goto(random_time)
+    
+    envstate   = obj$get_state_matrix()
+    n_episodes = 0
+    success    = T
+    
+    while(success & (length(obj$valid_actions()) > 0)){
+      jumped_steps = try(jump(obj, experience, numstep), silent = T)
+      success = !inherits(jumped_steps, 'try-error')
+      if(success){
+        n_episodes = n_episodes + jumped_steps
+        loss       = teach(obj, experience, model, dt_size)
+        cat('\n', 'Epoch: ', epoch,'/', n_epoch, ' Loss: ', loss, ' Episodes: ', n_episodes, 'env time: ', as.character(obj$now()), '\n')
+      }
+    }
+  }
+  return(model)
+}
+
+teach = function(obj, experience, model, n_train_data = 100){
+  # Train neural-network model:
+  training_set = experience$get_training_data(n_train_data)
+  history      = model %>% fit(x = training_set$inputs, y = training_set$targets, epochs = 100, batch_size = 32, verbose = 0)
+  model %>% evaluate(x = training_set$inputs, y = training_set$targets, verbose = 0)
+}  
