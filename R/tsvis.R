@@ -26,19 +26,26 @@
 
 # plots process map for the transition system
 #' @export plot.process.map
-plot.process.map = function(obj, measure = c('freq', 'time'), time_unit = c('second', 'minute', 'hour', 'day', 'week', 'year'), plotter = c('grviz', 'visNetwork'), config = NULL, ...){
+plot_process_map = function(obj, measure = c('freq', 'time', 'rate'), time_unit = c('second', 'minute', 'hour', 'day', 'week', 'year'), plotter = c('grviz', 'visNetwork'), config = NULL, remove_ends = F, ...){
   plotter   = match.arg(plotter)
   measure   = match.arg(measure)
   time_unit = match.arg(time_unit)
-  nontime   = 'freq'
+  nontime   = c('freq', 'rate')
   k         = chif(measure %in% nontime, as.integer(1), 1.0/timeUnitCoeff[time_unit])
-  plotname  = 'process.map' %>% paste(measure, plotter, sep = '.')
-  if(measure != 'freq'){plotname %<>% paste(time_unit, sep = '.')}
-
-  if(!is.null(obj$plots[[plotname]])){return(obj$plots[[plotname]])}
 
   nodes = obj$get.nodes()
   links = obj$get.links()
+  
+  if(remove_ends){
+    endstats = c('START', 'END', 'ENTER', 'EXIT')
+    nodes = nodes[!(nodes$status %in% endstats),]
+    links = links[(!(links$status %in% endstats)) & (!(links$nextStatus %in% endstats)),]
+  } else {
+    nodes %<>% dplyr::mutate(shape = ifelse(status %in% c('START', 'END'), 'circle', ifelse(status %in% c('ENTER', 'EXIT'), 'diamond', 'rectangle')))
+    if(measure %in% nontime){
+      nodes$totalEntryFreq[nodes$status == 'START'] <- nodes$totalEntryFreq[nodes$status == 'END'] %>% sum(na.rm = T)
+    }
+  }
   
   if(is.null(config)){config = list()}
 
@@ -49,20 +56,25 @@ plot.process.map = function(obj, measure = c('freq', 'time'), time_unit = c('sec
   nodes %<>%
     dplyr::mutate(shape = ifelse(status %in% c('START', 'END'), 'circle', ifelse(status %in% c('ENTER', 'EXIT'), 'diamond', 'rectangle')))
 
-  if(measure == 'freq'){
-
+  if(measure %in% nontime){
     nodes$totalEntryFreq[nodes$status == 'START'] <- nodes$totalEntryFreq[nodes$status == 'END'] %>% sum(na.rm = T)
 
     nodes %<>%
       dplyr::mutate(label = status %>% paste0('\n', '(', totalEntryFreq, ')')) %>%
       dplyr::mutate(id = status, size = totalEntryFreq, color = totalEntryFreq)
 
+    if(measure == 'freq'){
+      links %<>% dplyr::mutate(linkLabel = ' ' %++% totalFreq)
+    } else {
+      links %<>% left_join(links %>% group_by(status) %>% summarise(den = sum(totalFreq)) %>% ungroup, by = 'status') %>% 
+        dplyr::mutate(linkLabel = paste0(' ', round(100*totalFreq/den, 2), '%'))
+    }
     links %<>%
-      dplyr::mutate(linkLabel = ' ' %++% totalFreq, linkTooltip = status %>% paste(nextStatus, sep = '-')) %>%
+      dplyr::mutate(linkTooltip = status %>% paste(nextStatus, sep = '-')) %>%
       dplyr::mutate(source = status, target = nextStatus, linkColor = totalFreq, linkWidth = totalFreq)
 
     list(nodes = nodes, links = links) %>%
-      viserPlot(key = 'id', shape = 'shape', label = 'label', color = 'color', source = 'status', target = 'nextStatus', linkColor = 'linkColor', linkWidth = 'linkWidth', linkLabel = 'linkLabel', linkTooltip = 'linkTooltip', config = cfg, plotter = plotter, type = 'graph') -> obj$plots[[plotname]]
+      viserPlot(key = 'id', shape = 'shape', label = 'label', color = 'color', source = 'status', target = 'nextStatus', linkColor = 'linkColor', linkWidth = 'linkWidth', linkLabel = 'linkLabel', linkTooltip = 'linkTooltip', config = cfg, plotter = plotter, type = 'graph')
   } else {
     cfg$palette$color = c('white', 'red')
 
@@ -75,10 +87,8 @@ plot.process.map = function(obj, measure = c('freq', 'time'), time_unit = c('sec
       dplyr::mutate(label = ' ' %++% (meanTime %>% round(digits = 2) %>% paste(time_unit %>% substr(1,1))), tooltip = status %>% paste(nextStatus, sep = '-'))
 
     list(nodes = nodes, links = links) %>%
-      viserPlot(key = 'status', shape = 'shape', label = 'label', color = list(color = 'totalDuration'), source = 'status', target = 'nextStatus', linkColor = list(color = 'totalTime'), linkWidth = 'totalTime', linkLabel = 'label', linkTooltip = 'tooltip', config = cfg, plotter = plotter, type = 'graph', ...) -> obj$plots[[plotname]]
-
+      viserPlot(key = 'status', shape = 'shape', label = 'label', color = list(color = 'totalDuration'), source = 'status', target = 'nextStatus', linkColor = list(color = 'totalTime'), linkWidth = 'totalTime', linkLabel = 'label', linkTooltip = 'tooltip', config = cfg, plotter = plotter, type = 'graph', ...)
   }
-  return(obj$plots[[plotname]])
 }
 
 #' plots process tree for the transition system
@@ -272,6 +282,22 @@ plot.status.prev.pie = function(obj, statusID, trim = NULL, plotter = 'plotly', 
     viserPlot(label = 'status', theta = 'freq', type = 'pie', plotter = plotter, config = cfg, ...)
 }
 
+############### Markov Chain Probability Trends:
+plot.prob.trend = function(obj, initial_status, n_steps = 10, plotter = 'plotly'){
+  obj$get.adjacency(measure = 'rate', remove_ends = T) %>% t -> M
+  v = rep(0, nrow(M)) %>% {names(.) <- rownames(M); .[initial_status] <- 1.0; .}
+  trend = NULL
+  for(i in sequence(n_steps)){
+    if(i == 1){MP <- M} else {MP <- MP %*% M}
+    trend %<>% cbind(MP %*% v)
+  }
+  
+  colnames(trend) <- paste0('M', sequence(ncol(trend)))
+  trend %>% t %>% as.data.frame %>% rownames2Column('status') %>% 
+    viserPlot(x = 'status', y = colnames(.) %>% setdiff('status') %>% as.list,
+              type = 'bar', plotter = plotter, config = list(barMode = 'stack'))
+}
+
 
 ############### Volume Time Series Visualisations:
 
@@ -286,6 +312,12 @@ plot.volumes.area = function(obj, period = 'daily', trim = 0.01, plotter = 'stre
     viserPlot(x = 'date', y = colns %>% as.list, plotter = plotter, type = 'tsarea', ...)
 }
 
-
+# Do not call this function without filtering if you have more many cases.
+# Don't forget to filter for a few cases before calling this function. 
+plot_case_timeline = function(obj){
+  tbl = obj$history %>% filter(selected) %>% select(start = startTime, content = status, end = endTime, group = caseID) %>% mutate(id = 1:nrow(.), type = 'range')
+  tblgrp = data.frame(id = unique(tbl$group)) %>% mutate(content = id)
+  timevis::timevis(data = tbl, groups = tblgrp)
+}
 
 

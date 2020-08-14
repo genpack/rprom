@@ -57,6 +57,9 @@
 # http://seananderson.ca/2013/10/19/reshape.html
 # http://stackoverflow.com/questions/26536251/comparing-gather-tidyr-to-melt-reshape2
 
+# Visualizing Markov-Chain Models:
+# https://setosa.io/ev/markov-chains/
+
 
 # Required Libraries:
 library(dplyr)
@@ -241,7 +244,19 @@ TRANSYS = setRefClass('TRANSYS',
                           }
                           return(tables$profile.case %>% select(caseID, path, loops, transCount, duration, completed))
                         },
+                        
+                        get.case.status.startTime = function(){
+                          obj$history %>% reshape2::dcast(caseID ~ status, value.var = 'startTime', fun.aggregate = min) %>% column2Rownames('caseID') -> wide
+                          for(i in sequence(ncol(wide))) {wide[,i] %<>% as.POSIXct(origin = '1970-01-01')}
+                          return(wide)  
+                        },
 
+                        get.status.case.startTime = function(){
+                          obj$history %>% reshape2::dcast(status ~ caseID, value.var = 'startTime', fun.aggregate = min) %>% column2Rownames('status') -> wide
+                          for(i in sequence(ncol(wide))) {wide[,i] %<>% as.POSIXct(origin = '1970-01-01')}
+                          return(wide)  
+                        },
+                        
                         # returns the Case Status Time (CST) matrix containing amount of time each case spent on each status. NA means the case never met the status
                         get.case.status.duration = function(){
                           "Returns a table containing duration of each case on each status"
@@ -263,7 +278,7 @@ TRANSYS = setRefClass('TRANSYS',
                           if(nrow(history) == 0){
                             report$case.status.freq <<- data.frame()
                           } else if(is.null(report$case.status.freq)){
-                            history %>% dplyr::group_by(caseID, status) %>%
+                            history %>% dplyr::filter(selected) %>% dplyr::group_by(caseID, status) %>%
                               dplyr::summarise(freq = length(duration)) %>%
                               reshape2::dcast(caseID ~ status, value.var = 'freq') %>% na2zero %>% column2Rownames('caseID') ->> report$case.status.freq
                           }
@@ -647,7 +662,7 @@ TRANSYS = setRefClass('TRANSYS',
                           return(report$time.status.volume)
                         },
                         
-                        get.adjacency = function(measure = c('freq', 'time'), full = F, aggregator = c('sum', 'mean', 'median', 'sd')){
+                        get.adjacency = function(measure = c('freq', 'time', 'rate'), full = F, aggregator = c('sum', 'mean', 'median', 'sd'), remove_ends = F){
                           measure      = match.arg(measure)
                           aggregator   = match.arg(aggregator)
                           tabName      = 'adjacency' %>% paste(measure, aggregator, chif(full, 'full', ''), sep = '.')
@@ -657,15 +672,20 @@ TRANSYS = setRefClass('TRANSYS',
                             edges   = get.links(full = full)
                             if(is.empty(edges)){return(data.frame())}
                             E = edges %>%
-                              reshape2::dcast(status ~ nextStatus, value.var = chif(measure == 'freq', 'totalFreq', timevar[aggregator])) %>%
+                              reshape2::dcast(status ~ nextStatus, value.var = chif(measure %in% c('rate', 'freq'), 'totalFreq', timevar[aggregator])) %>%
                               column2Rownames('status') %>% na2zero
 
                             for (i in get.statuses(full = full) %-% colnames(E)){E[, i] <- 0}
                             for (i in get.statuses(full = full) %-% rownames(E)){E[i, ] <- 0}
 
-                            E[get.statuses(full = full), get.statuses(full = full)] ->> report[[tabName]]
+                            to_remove = chif(remove_ends, c('START', 'END', 'ENTER', 'EXIT'), c())
+                            E[get.statuses(full = full) %-% to_remove, get.statuses(full = full) %-% to_remove] ->> report[[tabName]]
+                            if(measure == 'rate'){
+                              rsms = rowSums(report[[tabName]])
+                              report[[tabName]] <<- report[[tabName]] %>% apply(2, function(v) v/rsms)
+                            }
                           }
-                          return(tables[[tabName]])
+                          return(report[[tabName]])
                         },
 
                         get.statuses = function(full = F){
@@ -713,9 +733,9 @@ TRANSYS = setRefClass('TRANSYS',
                           
                         get.traces = function(){
                           if(is.null(report$traces)){
-                            casePath = get.case.path()
+                            casePath = get.case.path() %>% filter(caseID %in% get.cases())
                             cat('\n', 'Aggregating traces ...')
-                            report$traces <<- casePath[get.cases(), ] %>% dplyr::group_by(path) %>%
+                            report$traces <<- casePath %>% dplyr::group_by(path) %>%
                               dplyr::summarise(freq = length(path), totTime = sum(duration, na.rm = T), avgTime = mean(duration, na.rm = T), medTime = median(duration, na.rm = T), sdTime = sd(duration, na.rm = T), complete = completed[1]) %>%
                               dplyr::ungroup() %>% dplyr::arrange(freq) %>%
                               dplyr::mutate(variation = 'Variation ' %++% rev(sequence(nrow(.))))
@@ -740,8 +760,8 @@ TRANSYS = setRefClass('TRANSYS',
                               arrange(status, nextStatus) %>%
                               group_by(status) %>%
                               mutate(cum_freq = cumsum(totalFreq)) %>%
-                              mutate(cum_prob = cum_freq/sum(totalFreq)) %>% ungroup() %>%
-                              select(status, nextStatus, cum_prob) ->> report$transition_probabilities
+                              mutate(prob = totalFreq/sum(totalFreq), cum_prob = cum_freq/sum(totalFreq)) %>% ungroup() %>%
+                              select(status, nextStatus, prob, cum_prob) ->> report$transition_probabilities
                           }
                           return(report$transition_probabilities)
                         },
@@ -909,9 +929,21 @@ TRANSYS = setRefClass('TRANSYS',
                           if(!silent){cat('No more transitions (End of simulation)', '\n')}
                           
                           final_events %>% arrange(caseID, startTime)
-                        }
+                        },
                         
-
+                        plot.process.map = function(obj, measure = c('rate', 'freq', 'time'), time_unit = c('second', 'minute', 'hour', 'day', 'week', 'year'), plotter = c('grviz', 'visNetwork'), config = NULL, remove_ends = F, ...){
+                          plotter   = match.arg(plotter)
+                          measure   = match.arg(measure)
+                          time_unit = match.arg(time_unit)
+                          nontime   = c('freq', 'rate')
+                          plotname  = 'process_map' %>% paste(measure, plotter, chif(remove_ends, 'RE', ''), sep = '_')
+                          if(!measure %in% nontime){plotname %<>% paste(time_unit, sep = '_')}
+                          
+                          if(is.null(plots[[plotname]])){
+                            plots[[plotname]] <<- plot_process_map(.self, measure = measure, time_unit = time_unit, plotter = plotter, config = config, remove_ends = remove_ends, ...)
+                          }
+                          return(plots[[plotname]])
+                        }
                       )
 )
 

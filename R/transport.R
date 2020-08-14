@@ -253,7 +253,74 @@ TRANSPORT = setRefClass('TRANSPORT', contains = 'TRANSYS', fields = list(ctime =
     lcid = get.case.path()[lcid, 'caseID']
     if(full){hist = history} else {hist = history %>% filter(selected)}
     hist %>% filter(caseID == lcid) %>% pull(station) %>% unique
+  },
+  
+  plotJourney = function(by_status = F, journey = T, incident = F, scheduled = F, simulation = F, group = F){
+    
+    if(by_status){
+      get.traces() %>% pull(path) %>% strsplit('-') -> a
+      if(length(a) > 0){
+        lvls = a[[a %>% lapply(length) %>% unlist %>% order %>% tail(1)]]
+        lvls = ifelse(lvls %in% c('START', 'END'), lvls, substr(lvls, 5, nchar(lvls))) %>% unique
+        
+        history %>% filter(selected) %>% 
+          mutate(station = factor(status, levels = lvls)) %>% 
+          plot_ly(type = 'scatter', x = ~startTime, y = ~status, color = ~caseID, mode = 'lines+markers')
+      }  
+      #   wide = get.status.case.time()
+      #   
+      #   wide %>% mutate(status = rownames(.)) %>% 
+      #     mutate(station = ifelse(status %in% c('START', 'END'), status, substr(status, 5, nchar(status)))) %>% 
+      #     mutate(station = factor(station, levels = lvls)) %>% arrange(station) %>% 
+      #     viserPlot(x = 'station', y = colnames(wide) %>% as.list, plotter = 'plotly', type = 'combo', shape = 'line.point')
+      # } else {cat('\n', 'Empty object! Nothing plotted.', '\n')}
+    } 
+    else {
+      
+      if (journey){
+        history %>% filter(selected) %>% 
+          select(caseID, startTime, station) %>% mutate(type = 'Journey') -> tbl
+      } else {tbl = NULL}
+      
+      if(incident){
+        get.incidents() %>%  
+          select(time_from, st_from, st_to, incid, inctype) %>% 
+          mutate(incid = paste0(incid, ' (', inctype, ')')) -> inc
+        
+        inc %>% select(caseID = incid, startTime = time_from, station = st_from) %>% 
+          rbind(inc %>% select(caseID = incid, startTime = time_from, station = st_to)) %>% 
+          arrange(caseID, startTime) %>% unique %>% mutate(type = 'Incident') %>% rbind(tbl) -> tbl
+      }
+      
+      if(simulation & (!is.null(objects$sim))){
+        objects$sim$history %>% filter(selected) %>% left_join(get.station_map(), by = 'status') %>% 
+          # mutate(caseID = paste0('SIM (', caseID, ')')) %>% 
+          select(caseID, startTime, station) %>% mutate(type = 'Simulation') %>% rbind(tbl) -> tbl
+      }
+      
+      if(scheduled & (!is.null(objects$timetable))){
+        # history %>% filter(status != 'START') %>% distinct(status, station) -> stmap
+        objects$timetable$history %>% filter(selected) %>% 
+          # left_join(stmap, by = 'status') %>% 
+          # mutate(caseID = paste0('SIM (', caseID, ')')) %>% 
+          select(caseID, startTime, station) %>% mutate(type = 'Scheduled') %>% rbind(tbl) -> tbl
+      }
+      
+      tbl %>% 
+        mutate(station = factor(station, levels = tables$profile.station %>% arrange(rank) %>% pull(station))) %>% 
+        group_by(caseID) %>% 
+        plot_ly(type = 'scatter', x = ~startTime, y = ~station, color = chif(group,~type, ~caseID), 
+                symbol = ~type, mode = 'lines+markers')
+    }
   }
+  
+  plotTimeline = function(){
+    tbl = obj$history %>% filter(selected) %>% select(start = startTime, content = status, end = endTime, group = TDN) %>% mutate(id = 1:nrow(.), type = 'range')
+    tblgrp = data.frame(id = unique(tbl$group)) %>% mutate(content = id)
+    timevis::timevis(data = tbl, groups = tblgrp)
+  }
+  
+  
 ))
 
 

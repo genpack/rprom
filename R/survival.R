@@ -22,11 +22,11 @@
 #' @description Reference class containing some properties and methods required for survival modelling.
 #'
 #' @field data list A list of tables. Table names can be: el (event log), cel (current eventlog), cp (case profile), ccp (current case profile), 
-#' cvp (case-variable profile), ccvp(current case-variable profile), cpt (case profile time), ccpt (current case profile time), 
+#' cvp (case-attribute profile), ccvp(current case-attribute profile), cpt (case profile time), ccpt (current case profile time), 
 #' cpag (case profile aggregated), ccpag (current case profile aggregated)
 #' @field report list A list of tables containing analysis reports.
-#' @field settings list A list of class settings. Has following parameters: caseID_col, eventTime_col, eventType_col, variable_col, value_col,
-#' caseStart_tag, caseEnd_tag, age_varname, deathReason_varname, cp_variables, normalize_hazard, cp_aggregators, cp_binners, cp_categoricals, cp_variables
+#' @field settings list A list of class settings. Has following parameters: caseID_col, eventTime_col, eventType_col, attribute_col, value_col,
+#' caseStart_tag, caseEnd_tag, age_varname, deathReason_varname, cp_attributes, normalize_hazard, cp_aggregators, cp_binners, cp_categoricals, cp_attributes
 #' @export SURVIVAL
 SURVIVAL = setRefClass('SURVIVAL',
                        fields = list(data = 'list', report = 'list', settings = 'list'),
@@ -35,9 +35,9 @@ SURVIVAL = setRefClass('SURVIVAL',
                            callSuper(settings = config, ...)
 
                            settings %>%
-                             list.default(caseID_col = 'caseID', eventTime_col = 'eventTime', eventType_col = 'eventType', variable_col = 'variable', value_col = 'value') %>%
+                             list.default(caseID_col = 'caseID', eventTime_col = 'eventTime', eventType_col = 'eventType', attribute_col = 'attribute', value_col = 'value') %>%
                              list.default(caseStart_tag = NULL, caseEnd_tag = NULL) %>%
-                             list.default(age_varname = 'age', deathReason_varname = 'deathReason', cp_variables = character()) %>%
+                             list.default(age_varname = 'age', deathReason_varname = 'deathReason', cp_attributes = character()) %>%
                              list.default(normalize_hazard = F, cp_aggregators = 'last') ->> settings
                          },
 
@@ -58,7 +58,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                            for(arg in names(args)){
                              settings[[arg]] <<- args[[arg]]
                              ## todo: considerations for change of settings
-                             if(arg %in% 'cp_variables'){reset('cp', 'ccp', 'cvp', 'ccvp')}
+                             if(arg %in% 'cp_attributes'){reset('cp', 'ccp', 'cvp', 'ccvp')}
                            }
 
                          },
@@ -74,12 +74,12 @@ SURVIVAL = setRefClass('SURVIVAL',
 
                          # caseStart_tag specifies eventType that triggers start of a case (when a case is born)
                          # if caseStart_tag is not specified, age_varname must be specified.
-                         # age_varname specifies the value in variable column whose associated value column contains the case age or tenure.
+                         # age_varname specifies the value in attribute column whose associated value column contains the case age or tenure.
                          # if age_varname is not specifies, then age is computed from the eventTime of the earliest row whose associated value in eventType column equals caseStart_tag.
                          feed.eventlog = function(dataset){
                            "Feed eventlog. Argument 'dataset' must be a sparklyr table. Column names must have been defined in settings"
                            
-                           data$el  <<- dataset %>% rename(caseID = settings$caseID_col, eventTime = settings$eventTime_col, eventType = settings$eventType_col, variable = settings$variable_col, value = settings$value_col)
+                           data$el  <<- dataset %>% rename(caseID = settings$caseID_col, eventTime = settings$eventTime_col, eventType = settings$eventType_col, attribute = settings$attribute_col, value = settings$value_col)
                            data$cel <<- data$el
                          },
 
@@ -103,11 +103,11 @@ SURVIVAL = setRefClass('SURVIVAL',
                            return(data[[cpagname]])
                          },
 
-                         get.eventVariables = function(){
-                           # Returns all event types and event variables(attributes) in the eventlog
+                         get.eventattributes = function(){
+                           # Returns all event types and event attributes(attributes) in the eventlog
                            if(is.null(data$ev)){
                              if(!is.null(data$el)){
-                               data$ev <<- data$el %>% group_by(eventType, variable) %>% summarise(count = COUNT(value)) %>% collect
+                               data$ev <<- data$el %>% group_by(eventType, attribute) %>% summarise(count = COUNT(value)) %>% collect
                              } else {stop("No eventLog found!")}
                              # todo: get it from other tables if available
                            }
@@ -118,7 +118,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                            # For now, assume age_varname and deathReason_varname are not NULL:
                            assert(!is.null(settings$age_varname))
                            assert(!is.null(settings$deathReason_varname))
-                           variables = settings$cp_variables %U% c(settings$age_varname, settings$deathReason_varname)
+                           attributes = settings$cp_attributes %U% c(settings$age_varname, settings$deathReason_varname)
 
                            if(full){cvpname = 'cvp'; elname = 'el'} else {cvpname = 'ccvp'; elname = 'cel'}
 
@@ -137,8 +137,8 @@ SURVIVAL = setRefClass('SURVIVAL',
                          get.caseVarProfileTime = function(full = T){
                            if(full){cvptname = 'cvpt';elname = 'el'} else {cvptname = 'ccvpt'; elname = 'cel'}
                            if(is.null(data[[cvptname]])){
-                             data[[elname]] %>% filter(variable %in% c(settings$age_varname, settings$deathReason_varname)) %>%
-                               arrange(caseID, eventTime) %>% group_by(caseID, variable) %>%
+                             data[[elname]] %>% filter(attribute %in% c(settings$age_varname, settings$deathReason_varname)) %>%
+                               arrange(caseID, eventTime) %>% group_by(caseID, attribute) %>%
                                summarise(firstValue = first_value(value), lastValue = last_value(value), firstTime = first_value(eventTime), lastTime = last_value(eventTime)) ->> data[[cvptname]]
                            }
                            return(data[[cvptname]])
@@ -150,7 +150,7 @@ SURVIVAL = setRefClass('SURVIVAL',
 
                            if(is.null(data[[cptname]])){
                              get.caseVarProfileTime(full = full) %>%
-                               sdf_pivot(caseID ~ variable, fun.aggregate = list(lastValue = "sum", lastTime = "last_value")) %>%
+                               sdf_pivot(caseID ~ attribute, fun.aggregate = list(lastValue = "sum", lastTime = "last_value")) %>%
                                rename(deathTime   = settings$deathReason_varname %>% paste0('_last(lastTime, false)'),
                                       deathReason = settings$deathReason_varname %>% paste0('_sum(CAST(lastValue AS DOUBLE))'),
                                       LastAgeTime = settings$age_varname %>% paste0('_last(lastTime, false)'),
@@ -170,10 +170,10 @@ SURVIVAL = setRefClass('SURVIVAL',
                            if(is.null(data[[cpname]])){
 
                              if(settings$cp_aggregators %<% c('sum', 'mean', 'last', 'first', 'min', 'max', 'count')){
-                               data[[elname]] %>% filter(variable %in% settings$cp_variables) %>%
+                               data[[elname]] %>% filter(attribute %in% settings$cp_attributes) %>%
                                  el2cp(settings$cp_aggregators) ->> data[[cpname]]
                              } else {
-                               get.caseVarProfile(full = full) %>% filter(variable %in% settings$cp_variables) %>%
+                               get.caseVarProfile(full = full) %>% filter(attribute %in% settings$cp_attributes) %>%
                                  cvp2cp(cp_cols) ->> data[[cpname]]
                              }
 

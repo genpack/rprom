@@ -1,0 +1,616 @@
+# mlmtools (Machine Learning Mapper Tools)
+
+# Standard Feature Names:
+
+# event-based features:
+# <eventTypes>_<attributes>_<periodicAggregator>_<windowType>_<historicAggregator>_<lag>
+# Example:
+# transactionReported_amount_SUMG0SUML5
+
+# Tools to map event-log into training dataset for machine learning:
+# MLMpaaer.periodic converts an eventlog into a mix of multivariate time series.  Each caseID, will have a time series for itself.
+MLMapper.periodic = function(eventlog, features, period = c('hour', 'day', 'week', 'month', 'year'), start = NULL, end = NULL){
+  period = match.arg(period)
+  eventlog$eventTime %<>% as.POSIXct %>% lubridate::force_tz('GMT')
+  if(!is.null(start)){start %<>% as.POSIXct %>% lubridate::force_tz('GMT'); eventlog %<>% filter(eventTime > start - 1)}
+  if(!is.null(end))  {end   %<>% as.POSIXct %>% lubridate::force_tz('GMT'); eventlog %<>% filter(eventTime < end + 1)}
+
+  EL %<>% mutate(periodStart = eventTime %>% lubridate::floor_date(period), selected = T)
+  molten = data.frame()
+  for (ft in features){
+    if(!is.null(ft$eventTypes)){
+      EL$selected = EL$eventType %in% ft$eventTypes
+    }
+
+    if(!is.null(ft$variables)){
+      EL$selected = EL$selected & (EL$variable %in% ft$variables)
+    }
+    EL %>% filter(selected) %>% group_by(caseID, periodStart) %>%
+      summarise(aggrval = do.call(ft$aggregator, list(value))) %>%
+      mutate(featureName = ft$name) %>%
+      bind_rows(molten) -> molten
+  }
+
+  tt = data.frame(periodStart = seq(from = min(EL$periodStart), to = max(EL$periodStart), by = 'day'))
+  data.frame(caseID = unique(eventlog$caseID)) %>% group_by(caseID) %>% do({data.frame(caseID = .$caseID, periodStart = tt)}) %>%
+    left_join(molten %>% reshape2::dcast(caseID + periodStart ~ featureName, sum, value.var = 'aggrval'), by = c('caseID', 'periodStart')) -> molten
+  molten[is.na(molten)] <- 0
+  names(molten)[2] <- 'time'
+  return(molten)
+}
+
+MLMapper.periodic.old = function(eventlog, features, period = c('hour', 'day', 'week', 'month', 'year'), start = NULL, end = NULL){
+  period = match.arg(period)
+  eventlog$eventTime %<>% as.POSIXct %>% lubridate::force_tz('GMT')
+  if(!is.null(start)){start %<>% as.POSIXct %>% lubridate::force_tz('GMT'); eventlog %<>% filter(eventTime > start - 1)}
+  if(!is.null(end))  {end   %<>% as.POSIXct %>% lubridate::force_tz('GMT'); eventlog %<>% filter(eventTime < end + 1)}
+
+  eventlog %<>% mutate(periodStart = eventTime %>% lubridate::floor_date(period), selected = T)
+  molten = data.frame()
+  for (ft in features){
+    if(!is.null(ft$eventTypes)){
+      eventlog$selected = eventlog$eventType %in% ft$eventTypes
+    } else eventlog$selected = TRUE
+
+    if(!is.null(ft$variables)){
+      eventlog$selected = eventlog$selected & (eventlog$variable %in% ft$variables)
+    }
+    eventlog %>% filter(selected) %>% group_by(caseID, periodStart) %>%
+      summarise(aggrval = do.call(ft$aggregator, list(value))) %>%
+      mutate(featureName = ft$name) -> mlt
+
+    if(nrow(mlt) > 0){
+      molten %<>% bind_rows(mlt)
+    }
+  }
+
+  tt = data.frame(periodStart = seq(from = min(eventlog$periodStart), to = max(eventlog$periodStart), by = period))
+  data.frame(caseID = unique(eventlog$caseID)) %>% group_by(caseID) %>% do({data.frame(caseID = .$caseID, periodStart = tt)}) %>%
+    left_join(molten %>% reshape2::dcast(caseID + periodStart ~ featureName, sum, value.var = 'aggrval'), by = c('caseID', 'periodStart')) -> molten
+  molten[is.na(molten)] <- 0
+  names(molten)[2] <- 'time'
+  return(molten)
+}
+
+# currently, only works for daily
+MLMapper.periodic.sparklyr = function(eventlog, features, period = 'day', start = NULL, end = NULL){
+  period = match.arg(period)
+  if(!is.null(start)){start %<>% as.POSIXct %>% lubridate::force_tz('GMT'); eventlog %<>% filter(eventTime > start - 1)}
+  if(!is.null(end))  {end   %<>% as.POSIXct %>% lubridate::force_tz('GMT'); eventlog %<>% filter(eventTime < end + 1)}
+  eventlog %<>% mutate(periodStart = as.Date(eventTime))
+  molten = data.frame()
+  for(ft in config$features){
+    cat('Building PAF ', ft$name, '\n')
+    if(!is.null(ft$eventTypes)){
+      eventlog %<>% mutate(selected = eventType %in% ft$eventTypes)
+    } else {
+      eventlog %<>% mutate(selected = TRUE)
+    }
+
+    if(!is.null(ft$variables)){
+      eventlog %<>% mutate(selected = selected & (variable %in% ft$variables))
+    }
+
+    switch(ft$aggregator,
+           'mean' = {eventlog %>% filter(selected) %>% group_by(caseID, periodStart) %>% summarise(aggrval = AVG(value, na.rm = T)) %>% mutate(featureName = ft$name) %>% collect},
+           'sum'  = {eventlog %>% filter(selected) %>% group_by(caseID, periodStart) %>% summarise(aggrval = SUM(value, na.rm = T)) %>% mutate(featureName = ft$name) %>% collect},
+           'first' = {eventlog %>% filter(selected) %>% group_by(caseID, periodStart) %>% summarise(aggrval = first_value(value)) %>% mutate(featureName = ft$name) %>% collect},
+           'last' = {eventlog %>% filter(selected) %>% group_by(caseID, periodStart) %>% summarise(aggrval = last_value(value)) %>% mutate(featureName = ft$name) %>% collect},
+           'count'  = {eventlog %>% filter(selected) %>% group_by(caseID, periodStart) %>% summarise(aggrval = COUNT(value)) %>% mutate(featureName = ft$name) %>% collect},
+           'max'  = {eventlog %>% filter(selected) %>% group_by(caseID, periodStart) %>% summarise(aggrval = MAX(value)) %>% mutate(featureName = ft$name) %>% collect},
+           'sd'  = {eventlog %>% filter(selected) %>% group_by(caseID, periodStart) %>% summarise(aggrval = sd(value)) %>% mutate(featureName = ft$name) %>% collect},
+           'min'  = {eventlog %>% filter(selected) %>% group_by(caseID, periodStart) %>% summarise(aggrval = MIN(value)) %>% mutate(featureName = ft$name) %>% collect}
+    ) -> mlt
+
+    if(nrow(mlt) > 0){
+      molten %<>% bind_rows(mlt)
+    }
+  }
+
+  tt = data.frame(periodStart = seq(from = min(molten$periodStart), to = max(molten$periodStart), by = 'day'))
+  data.frame(caseID = unique(eventlog$caseID)) %>% group_by(caseID) %>% do({data.frame(caseID = .$caseID, periodStart = tt)}) %>%
+    left_join(molten %>% reshape2::dcast(caseID + periodStart ~ featureName, sum, value.var = 'aggrval'), by = c('caseID', 'periodStart')) -> molten
+  molten[is.na(molten)] <- 0
+  names(molten)[2] <- 'time'
+  return(molten)
+}
+
+vect.history = function(location, vector, win_size, fun, early_call = F){
+  if(location < win_size){
+    if(early_call){out = do.call(fun, args = list(vector[sequence(location)]))} else {out = NA}
+  } else {
+    out = do.call(fun, args = list(vector[(location - win_size):location]))
+  }
+  return(out)
+}
+
+vect.future = function(location, vector, win_size, fun, late_call = F){
+  N = length(vector)
+  if(N - location < win_size){
+    if(late_call){out = do.call(fun, args = list(vector[location:N]))} else {out = NA}
+  } else {
+    out = do.call(fun, args = list(vector[location:(location + win_size)]))
+  }
+  return(out)
+}
+
+# Only for moving windows not growing
+MLMapper.historic.old = function(periodic, features, early_call = T){
+  drops = character()
+  for (ft in features){
+    if(is.null(ft$drop_reference)){ft$drop_reference = F}
+    periodic %>% nrow %>% sequence %>% 
+      sapply(FUN = vect.history, vector = periodic[, ft$reference], win_size = ft$win_size, fun = ft$aggregator, early_call = early_call) -> periodic[, ft$name]
+    if(ft$drop_reference){drops = c(drops, ft$reference)}
+  }
+
+  return(periodic[, colnames(periodic) %>% setdiff(drops)])
+}
+
+MLMapper.historic = function(periodic, features, caseID_col = 'caseID', eventTime_col = 'eventTime'){
+  drops = character()
+  periodic %<>% mutate(.row = sequence(nrow(.))) %>% arrange_(caseID_col, eventTime_col)
+    
+  for (ft in features){
+    if(is.null(ft$drop_reference)){ft$drop_reference = F}
+    if(ft$win_size < 2){ft$win_size = 2}
+    switch(ft$aggregator,
+           sum = {ft_fun = function(v) {
+             if(length(v) <= ft$win_size){return(mean(v))}
+             pracma::movavg(x = v, n = ft$win_size, type = chif(is.null(ft$type), 's', ft$type))*ft$win_size
+           }},
+           avg = {
+             ft_fun = function(v) {
+               if(length(v) <= ft$win_size){return(mean(v))}
+               pracma::movavg(x = v, n = ft$win_size, type = chif(is.null(ft$type), 's', ft$type))
+           }},
+           med = {stop("Not Supported Yet")},
+           min = {stop("Not Supported Yet")},
+           max = {stop("Not Supported Yet")}
+    )
+    # todo: write functions movmed, movsd, movmax, movmin
+    
+    periodic %>% pull(ft$reference) %>% ave(id = periodic %>% pull(caseID_col), FUN = ft_fun) -> periodic[, ft$name]
+      
+    if(ft$drop_reference){drops = c(drops, ft$reference)}
+  }
+  
+  return(periodic[, colnames(periodic) %>% setdiff(drops)] %>% arrange(.row) %>% select(-.row))
+}
+
+MLMapper.labeler = function(periodic, features){
+  drops = character()
+  for (ft in features){
+    if(is.null(ft$drop_reference)){ft$drop_reference = F}
+    periodic %>% nrow %>% sequence %>% sapply(FUN = vect.future, vector = periodic[, ft$reference], win_size = ft$win_size, fun = ft$aggregator) -> periodic[, ft$name]
+    if(ft$drop_reference){drops = c(drops, ft$reference)}
+  }
+  return(periodic[, colnames(periodic) %>% setdiff(drops)])
+}
+
+# This function helps you build list of features to pass to argument features of MLMapper.historic and MLMapper.labeler:
+add_features = function(flist = list(), actions){
+  for (act in actions){
+    for (ft in act$features){
+      flist %<>% c(act$win_sizes %>% lapply(function(x) list(name = paste(ft, act$label, sep = '.') %>% paste0(x) , aggregator = act$fun, reference = ft, win_size = x)))
+    }
+  }
+  return(flist)
+}
+
+# evenTime must be of class Date, otherwise, modify accordingly:
+ml_pack = function(el, period = c('day', "week", "month", "quarter", "year", "sec", "min", "hour"), sequential = F,
+                   event_funs = c('count', 'elapsed', 'tte', 'censored'), attr_funs = NULL, var_funs = NULL, horizon = NULL){
+  period = match.arg(period)
+  
+  el %<>% as.data.frame %>% select(caseID, eventTime, eventType, attribute, value)
+  el$value %<>% as.numeric
+
+  wna = which(is.na(el$caseID) | is.na(el$eventTime))
+  warnif(length(wna) > 0, paste(length(wna), 'rows', 'with missing caseID or eventTime are removed!'))
+  if(length(wna) > 0){el = el[- wna, ]}
+  
+  wna = which(is.na(el$value))
+  warnif(length(wna) > 0, paste(length(wna), 'values', 'missing or became missing through coercion replaced by zeros!'))
+  if(length(wna) > 0){el$value[wna] <- 0}
+
+  wna = which(is.na(el$attribute))
+  warnif(length(wna) > 0, paste(length(wna), 'attributes', "missing replaced by 'occurrence'"))
+  if(length(wna) > 0){el$attribute[wna] <- 'occurrence'}
+  
+  el$detailTime = el$eventTime
+  
+  if(period %in% c('day', "week", "month", "quarter", "year")){
+    el$eventTime = as.Date(el$eventTime)
+    if(period != 'day'){
+      el$eventTime %<>% cut(breaks = period) %>% as.Date
+      if(period == 'week'){
+        el$eventTime = el$eventTime + lubridate::weeks(1)
+      } else if (period == 'month'){
+        el$eventTime = el$eventTime + months(1)
+      } else if (period == 'quarter'){
+        el$eventTime = el$eventTime + months(3)
+      } else {
+      el$eventTime = el$eventTime + lubridate::years(1)
+      }
+    } else {
+      el$eventTime = el$eventTime + lubridate::days(1)
+    }
+  } else {
+    el$eventTime %<>% as.POSIXct
+    if(period != 'sec'){
+      el$eventTime %<>% cut(breaks = period)
+      el$eventTime %<>% as.POSIXct
+      if(period == 'min'){
+        el$eventTime = el$eventTime + lubridate::minutes(1)
+      } else{
+        el$eventTime = el$eventTime + lubridate::hours(1)
+      }
+    } else {
+      el$eventTime = el$eventTime + 1
+    }
+  }
+
+  out = list()
+  el %>% group_by(caseID) %>% summarise(minTime = min(eventTime), maxTime = max(eventTime)) %>% ungroup -> out$case_timends
+  el %>% distinct(eventType, attribute) -> out$event_attr_map
+
+  if(sequential){
+    # Option 1:
+    # bb = out$case_timends %>% group_by(caseID) %>%
+    #   do({data.frame(caseID = .$caseID, eventTime = seq(from = as.Date(.$minTime), to = as.Date(.$maxTime), by = period))})
+
+    # Option 2: (Faster)
+    bibi = function(v){seq(from = as.Date(v[2]), to = as.Date(v[3]), by = period)}
+    out$case_timends %>% mutate(minTime = cut(minTime, breaks = period), maxTime = cut(maxTime, breaks = period)) %>%
+      apply(1, bibi) -> a
+    names(a) <- out$case_timends$caseID
+    purrr::map_dfr(names(a), .f = function(v) {data.frame(caseID = v, eventTime = a[[v]])}) -> bb
+
+    bb %>% anti_join(el %>% select(caseID, eventTime), by = c('caseID', 'eventTime')) %>%
+      mutate(eventType = 'clock', attribute = 'counter', value = 1, detailTime = eventTime - 1) %>%
+      select(caseID, eventType, eventTime, attribute, value, detailTime) %>%
+      rbind(el) -> el
+  }
+
+  if(length(event_funs) > 0){
+    el %>%
+      reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'value', fun.aggregate = length) %>%
+      arrange(caseID, eventTime) -> out$event_count
+
+    cols = 3:ncol(out$event_count)
+  }
+
+  if('count_cumsum' %in% event_funs){
+    out$event_count_cumsum = out$event_count %>% column.cumulative.forward(col = cols, id_col = 'caseID')
+  }
+
+  if(sum(c('elapsed', 'tte', 'censored') %in% event_funs) > 0){
+    # out$event_time = out$event_count
+    # tstr = as.character(out$event_time[, 'eventTime'])
+    # out$event_time[, cols] %<>% as.matrix %>% apply(2, function(v) ifelse(v > 0, tstr, NA))
+    el %>% mutate(detailTime = as.character(detailTime)) %>%
+      reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'detailTime', fun.aggregate = first) %>%
+      arrange(caseID, eventTime) -> out$event_time
+  }
+
+  #### event elapsed
+  if('elapsed' %in% event_funs){
+    out$event_elapsed <- out$event_time %>% column.feed.forward(col = cols, id_col = 'caseID')
+
+    for(i in cols){
+      out$event_elapsed[, i] = as.numeric(out$event_elapsed$eventTime - as.Date(out$event_elapsed[, i]))
+    }
+  }
+
+  #### event tte, censored
+  if(('tte' %in% event_funs) | ('censored' %in% event_funs)){
+    out$event_tte <- out$event_time %>% column.feed.backward(col = cols, id_col = 'caseID')
+    for(i in cols){
+      out$event_tte[, i] = as.numeric(as.Date(out$event_tte[, i]) - out$event_tte$eventTime) %>% {.[.<0]<-NA;.}
+    }
+  }
+
+  if('censored' %in% event_funs){
+    out$event_censored = out$event_tte
+    out$event_censored[, cols] <- is.na(out$event_tte[, cols]) %>% as.numeric
+
+    out$event_tte %<>% left_join(out$case_timends, by = 'caseID') %>% mutate(ttc = as.numeric(maxTime - eventTime))
+    for(i in cols){
+      wna = which(out$event_censored[, i] == 1)
+      out$event_tte[wna, i] <- out$event_tte[wna, 'ttc']
+    }
+    out$event_tte %<>%  select(- minTime, - maxTime, -ttc)
+  }
+  #### Periodic(PAFs) and Historic Aggregated Features (HAFs) for events:
+  if('last' %in% event_funs){
+    el %>% reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'value', fun.aggregate = last) %>%
+      column.feed.forward(col = 3:ncol(.), id_col = 'caseID') -> out$event_last
+  }
+  
+  if(sum(c('sum', 'sum_cumsum') %in% event_funs) > 0){
+    el %>% reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'value', fun.aggregate = sum) -> out$event_sum
+  }
+  
+  if('sum_cumsum' %in% event_funs){
+    out$event_sum %>% column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID') -> out$event_sum_cumsum
+  }
+  
+  if(sum(c('max', 'max_cummax') %in% event_funs) > 0){
+    el %>% reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'value', fun.aggregate = max) -> out$event_max
+  }
+  
+  if('max_cummax' %in% event_funs){
+    out$event_max %>%
+      column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID', aggregator = cummax) %>%
+      {.[. == -Inf]<-NA;.} -> out$event_max_cummax
+  }
+  
+  if(sum(c('min', 'min_cummin') %in% event_funs) > 0){
+    el %>% reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'value', fun.aggregate = min) -> out$event_min
+  }
+  
+  if('min_cummin' %in% event_funs){
+    out$event_min %>%
+      column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID', aggregator = cummin) %>%
+      {.[. == Inf]<-NA;.} -> out$event_min_cummin
+  }
+  
+  #### Periodic(PAFs) and Historic Aggregated Features (HAFs) for attributes:
+  if('last' %in% attr_funs){
+    el %>% reshape2::dcast(caseID + eventTime ~ attribute, value.var = 'value', fun.aggregate = last) %>%
+      column.feed.forward(col = 3:ncol(.), id_col = 'caseID') -> out$attr_last
+  }
+
+  if(sum(c('sum', 'sum_cumsum') %in% attr_funs) > 0){
+    el %>% reshape2::dcast(caseID + eventTime ~ attribute, value.var = 'value', fun.aggregate = sum) -> out$attr_sum
+  }
+
+  if('sum_cumsum' %in% attr_funs){
+    out$attr_sum %>% column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID') -> out$attr_sum_cumsum
+  }
+
+  if(sum(c('max', 'max_cummax') %in% attr_funs) > 0){
+    el %>% reshape2::dcast(caseID + eventTime ~ attribute, value.var = 'value', fun.aggregate = max) -> out$attr_max
+  }
+
+  if('max_cummax' %in% attr_funs){
+    out$attr_max %>%
+      column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID', aggregator = cummax) %>%
+      {.[. == -Inf]<-NA;.} -> out$attr_max_cummax
+  }
+
+  if(sum(c('min', 'min_cummin') %in% attr_funs) > 0){
+    el %>% reshape2::dcast(caseID + eventTime ~ attribute, value.var = 'value', fun.aggregate = min) -> out$attr_min
+  }
+
+  if('min_cummin' %in% attr_funs){
+    out$attr_min %>%
+      column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID', aggregator = cummin) %>%
+      {.[. == Inf]<-NA;.} -> out$attr_min_cummin
+  }
+
+  #### Periodic(PAFs) and Historic Aggregated Features (HAFs) for Variable:
+  if(length(var_funs) > 0){
+    el %<>% mutate(variable = paste(eventType, attribute, sep = '_'))
+  }
+
+  if('last' %in% var_funs){
+    el %>% reshape2::dcast(caseID + eventTime ~ variable, value.var = 'value', fun.aggregate = last) %>%
+      column.feed.forward(col = 3:ncol(.), id_col = 'caseID') -> out$var_last
+  }
+
+  if(sum(c('sum', 'sum_cumsum') %in% var_funs) > 0){
+    el %>% reshape2::dcast(caseID + eventTime ~ variable, value.var = 'value', fun.aggregate = sum) -> out$var_sum
+  }
+
+  if('sum_cumsum' %in% var_funs){
+    out$var_sum %>% column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID') -> out$var_sum_cumsum
+  }
+
+  if(sum(c('max', 'max_cummax') %in% var_funs) > 0){
+    el %>% reshape2::dcast(caseID + eventTime ~ variable, value.var = 'value', fun.aggregate = max) -> out$var_max
+  }
+
+  if('max_cummax' %in% var_funs){
+    out$var_max %>%
+      column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID', aggregator = cummax) %>%
+      {.[. == -Inf]<-NA;.} -> out$var_max_cummax
+  }
+
+  if(sum(c('min', 'min_cummin') %in% var_funs) > 0){
+    el %>% reshape2::dcast(caseID + eventTime ~ variable, value.var = 'value', fun.aggregate = min) -> out$var_min
+  }
+
+  if('cummin' %in% var_funs){
+    out$var_min %>%
+      column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID', aggregator = cummin) %>%
+      {.[. == Inf]<-NA;.} -> out$var_min_cummin
+  }
+  if(!is.null(horizon)){
+    out %<>% add_event_labels(horizon %>% verify(c('integer', 'numeric'), lengths = 1, domain = c(1, Inf)))
+  }
+  return(out %>% standard_mlpack_feature_names)
+}
+
+standard_mlpack_feature_names = function(mlpack){
+  for(tn in names(mlpack) %-% c('extras', 'case_timends', 'event_attr_map')){
+    suffix = strsplit(tn, '_')[[1]] %-% c('event', 'attr', 'var') %>% paste(collapse = '_')
+    colnames(mlpack[[tn]]) <- c('caseID', 'eventTime', colnames(mlpack[[tn]])[-c(1,2)] %>% paste(suffix, sep = '_'))
+  }
+  return(mlpack)
+}
+
+add_event_labels = function(mlpack, horizon){
+  cols = 3:ncol(mlpack$event_tte)
+  event_label = mlpack$event_tte
+  event_label[, cols] <- as.numeric((mlpack$event_censored[, cols] == 0) & (mlpack$event_tte[, cols] < horizon) & (mlpack$event_tte[, cols] > 0))
+  mlpack$event_label = event_label
+  return(mlpack)
+}
+
+
+# The event-based features in the ML mapper, are for atomic events.
+# For an interval event-type with start and stop, use this mapper.
+# This function works only for one type of interval event which has start and end.
+# so start and end of one event must have identical event IDs.
+# Column eventType of the eventlog, must indicate if the event has started or ended. (Default tags are 'started', 'ended'. Specify if different tags are used in the dataset)
+ml_event_interval = function(
+  eventlog, period = 'day', sequential = F, caseID_col = 'caseID', eventID_col = 'eventID', eventTime_col = 'eventTime', eventType_col = 'eventType',
+  startTags = 'started', endTags = 'ended'){
+
+  eventlog %<>% nameColumns(columns = c(eventID = eventID_col, caseID = caseID_col, eventTime = eventTime_col, eventType = eventType_col))
+  startTags %<>% verify('character', default = 'started')
+  endTags   %<>% verify('character', default = 'ended')
+  standradEventType <- c(rep('started', length(startTags)), rep('ended', length(endTags)))
+  names(standradEventType) <- c(startTags, endTags) %>% tolower
+  eventlog$eventType       <- standradEventType[eventlog$eventType %>% tolower]
+
+  sna = sum(is.na(eventlog$type))
+  warnif(sna > 0, paste('eventType tags do not match for', sna, 'rows!'))
+
+  eventlog %>% group_by(caseID) %>%
+    mutate(eventNo = paste0('E', eventID %>% as.character %>% as.factor %>% as.integer)) %>%
+    mutate(eventType = paste0(eventNo, eventType)) %>%
+    select(-eventID, -eventNo) %>%
+    ml_pack(period = period, event_funs = c('count_cumsum', 'elapsed'), sequential = sequential) -> pack
+
+  colnames(pack$event_count_cumsum) %>% charFilter('started') -> start_events
+  start_events %>% gsub(pattern = 'started', replacement = 'ended') -> end_events
+
+  # current count of active events distributed by event bumber:
+  en_active_count  = pack$event_count_cumsum[start_events] - pack$event_count_cumsum[end_events]
+  # en_active_status = (en_active_count)
+
+  # Current count of events active for each case (similar to count of active tasks):
+  countActiveEvents = pack$event_count_cumsum %>% select(caseID, eventTime) %>%
+    cbind(numEventsActive = rowSums(en_active_count, na.rm = T))
+
+
+  # Current duration of active events (age of active events)
+  en_active_age = pack$event_elapsed[start_events]
+  en_active_age[en_active_count == 0] <- 0
+  en_active_age[en_active_age < 0] <- 0 # There must be no rows with negative age, but I added in case
+  caseActiveAge = pack$event_count_cumsum %>% select(caseID, eventTime) %>%
+    cbind(activeAge = en_active_age %>% apply(1, max, na.rm = T))
+
+  # a case is active when at least one event belonging to that case is active:
+
+  countActiveEvents %>% left_join(caseActiveAge, by = c('caseID', 'eventTime')) %>% mutate(status = numEventsActive > 0)
+}
+
+# ml_sliding = function(ml_pack, table_funs = list(event_count = c('sum90', 'mean120'), attr_max = c('mean15', 'max180'))){
+#   funs = table_funs$event_count %>% gsub(pattern = "[0-9]", replacement = "")
+#   nums = table_funs$event_count %>% gsub(pattern = "[a-z, A-Z]", replacement = "")
+#   cols = 3:ncol(ml_pack$event_count)
+#   
+#   tn = 'event_count' %>% paste(table_funs$event_count[1], sep = '_')
+#   out[[tn]] <- ml_pack$event_count
+#   for(i in 1:cols){
+#     which(ml_pack$event_elapsed[, i] < nums[1]) -> ind
+#     ml_pack$event_elapsed[ind, i] %>% ave(id = ml_pack$event_elapsed[ind, 'caseID'], FUN = validfun[funs[1]])    
+#   }
+# }
+
+# This module, runs a predictive model using each history table in the ml-pack as training data and 
+# ranks features by importance and measures model performance. Features of importance greater than
+# argument 'importance_threshold' from models with performance greater than 'performance_threshold'
+# are selected and a single dataset is returned.
+extract_mldata_from_mlpack = function(mlpack, train_from, train_to, test_from, test_to, label_event, importance_threshold, performance_threshold, performance_metric = 'gini', silent = T){
+  models = list()
+  
+  ind_train = which((mlpack$event_label$eventTime >= train_from) & (mlpack$event_label$eventTime <= train_to))
+  ind_test  = which((mlpack$event_label$eventTime >= test_from) & (mlpack$event_label$eventTime <= test_to))
+  
+  label_col = label_event %>% paste('label', sep = '_') 
+  y_train   = mlpack$event_label[ind_train,] %>% pull(label_col)
+  y_test    = mlpack$event_label[ind_test,]  %>% pull(label_col)
+  
+  history_tables = names(mlpack) %-% c('case_timends', 'event_attr_map', 'event_time', 'event_tte', 'event_censored', 'event_label')
+
+  ## Train models and measure performances:
+  perf = numeric()
+  for(tn in history_tables){
+    X_train = mlpack[[tn]][ind_train,] %>% select(-caseID, -eventTime)
+    X_test  = mlpack[[tn]][ind_test,]  %>% select(-caseID, -eventTime)
+    
+    mdl = new('CLS.SCIKIT.XGB', n_jobs = as.integer(8), rfe.enabled = T, name = tn)
+    mdl$fit(X_train, y_train)
+    
+    perf[tn]     <- mdl$performance(X_test, y_test, metric = performance_metric)
+    models[[tn]] <- mdl
+  }
+  
+  ## Extract important features from well-performed models:
+  # fl: feature list
+  fl = NULL
+  for(tn in names(perf[perf > performance_threshold])){
+    bfet = models[[tn]]$objects$features %>% 
+      filter(importance > importance_threshold) %>% 
+      mutate(performance = perf[tn]) %>% 
+      select(fname, importance, performance)
+    if(!silent){
+      cat('\n', 'Table ',tn, ':', '\n')
+      print(bfet)
+    }
+    fl %<>% rbind(bfet)
+  }
+  
+  tn = history_tables[1]
+  mldata <- mlpack[[tn]][fl$fname %^% colnames(mlpack[[tn]])]
+  for(tn in history_tables[-1]){
+    cn = fl$fname %^% colnames(mlpack[[tn]])
+    mlpack[[tn]][cn] %>% cbind(mldata) -> mldata
+  }
+  
+  return(mldata)
+}
+
+add_sliding_window_features = function(mlpack, tables = NULL, aggregators = NULL, win_sizes = NULL){
+  if(is.empty(win_sizes)) return(mlpack)
+  
+  aggr_list = list(sum = sum, avg = mean, med = median, min = min, max = max, sdv = sd)
+  
+  tables %<>% verify('character', domain = names(mlpack), default = 
+                       names(mlpack) %-% c('case_timends', 'event_attr_map', 'event_time', 'event_tte', 'event_censored', 'event_label'))
+
+  aggregators %<>% verify('character', domain = names(aggr_list), default = 'sum')
+
+  for(tn in tables){
+    features = list()
+    for(en in colnames(mlpack[[tn]]) %-% c('caseID', 'eventTime', 'clock')){
+      for(ag in aggregators){
+        for(i in win_sizes){
+          fn = paste(en, ag %++% i, sep = '_')
+          features[[fn]] <- list(name = fn, reference = en, win_size = i, aggregator = aggr_list[[ag]])
+        }
+      }
+    }
+    mlpack[[tn]] %<>% MLMapper.historic(features)
+  }
+  
+  return(mlpack)
+}
+
+
+
+
+create_feature_trend = function(mlpack, table, features, label_event, aggregator = mean, remove_censored = F){
+  if(remove_censored){
+    tbr = which(mlpack$event_censored[, label_event] == 0)
+    mlpack[[table]] = mlpack[[table]][tbr,]
+    mlpack[['event_label']] = mlpack[['event_label']][tbr,]
+  }
+  stopifnot(table %in% names(mlpack))
+  val = mlpack[[table]][features]
+  if(length(features) > 1) val %<>% rowSums(na.rm = T)
+  mlpack[[table]][, 'value'] = val
+  mlpack[[table]][, 'label'] = ifelse(mlpack$event_label[, label_event] == 1, 'Yes', 'No')
+  
+  mlpack[[table]] %>% group_by(eventTime, label) %>%
+    summarise(value = aggregator(value)) %>%
+    reshape2::dcast(eventTime ~ label) %>% na2zero %>%
+    arrange(eventTime)
+}
+
+

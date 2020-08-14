@@ -11,72 +11,6 @@ buildTimeSeasonalityFeatures = function(obj){}
 
 buildTimeStatusVolumeFeatures = function(obj){}
 
-TRANSPORT.plotJourney = function(obj, by_status = F, journey = T, incident = F, scheduled = F, simulation = F, group = F){
-  
-  if(by_status){
-    obj$get.traces() %>% pull(path) %>% strsplit('-') -> a
-    if(length(a) > 0){
-      lvls = a[[a %>% lapply(length) %>% unlist %>% order %>% tail(1)]]
-      lvls = ifelse(lvls %in% c('START', 'END'), lvls, substr(lvls, 5, nchar(lvls))) %>% unique
-
-      obj$history %>% filter(selected) %>% 
-        mutate(station = factor(status, levels = lvls)) %>% 
-        plot_ly(type = 'scatter', x = ~startTime, y = ~status, color = ~caseID, mode = 'lines+markers')
-    }  
-    #   wide = obj$get.status.case.time()
-    #   
-    #   wide %>% mutate(status = rownames(.)) %>% 
-    #     mutate(station = ifelse(status %in% c('START', 'END'), status, substr(status, 5, nchar(status)))) %>% 
-    #     mutate(station = factor(station, levels = lvls)) %>% arrange(station) %>% 
-    #     viserPlot(x = 'station', y = colnames(wide) %>% as.list, plotter = 'plotly', type = 'combo', shape = 'line.point')
-    # } else {cat('\n', 'Empty object! Nothing plotted.', '\n')}
-  } 
-  else {
-
-    if (journey){
-      obj$history %>% filter(selected) %>% 
-        select(caseID, startTime, station) %>% mutate(type = 'Journey') -> tbl
-    } else {tbl = NULL}
-
-    if(incident){
-      obj$get.incidents() %>%  
-        select(time_from, st_from, st_to, incid, inctype) %>% 
-        mutate(incid = paste0(incid, ' (', inctype, ')')) -> inc
-      
-      inc %>% select(caseID = incid, startTime = time_from, station = st_from) %>% 
-        rbind(inc %>% select(caseID = incid, startTime = time_from, station = st_to)) %>% 
-        arrange(caseID, startTime) %>% unique %>% mutate(type = 'Incident') %>% rbind(tbl) -> tbl
-    }
-    
-    if(simulation & (!is.null(obj$objects$sim))){
-      obj$objects$sim$history %>% filter(selected) %>% left_join(obj$get.station_map(), by = 'status') %>% 
-        # mutate(caseID = paste0('SIM (', caseID, ')')) %>% 
-        select(caseID, startTime, station) %>% mutate(type = 'Simulation') %>% rbind(tbl) -> tbl
-    }
-    
-    if(scheduled & (!is.null(obj$objects$timetable))){
-      # obj$history %>% filter(status != 'START') %>% distinct(status, station) -> stmap
-      obj$objects$timetable$history %>% filter(selected) %>% 
-        # left_join(stmap, by = 'status') %>% 
-        # mutate(caseID = paste0('SIM (', caseID, ')')) %>% 
-        select(caseID, startTime, station) %>% mutate(type = 'Scheduled') %>% rbind(tbl) -> tbl
-    }
-    
-    tbl %>% 
-      mutate(station = factor(station, levels = obj$tables$profile.station %>% arrange(rank) %>% pull(station))) %>% 
-      group_by(caseID) %>% 
-      plot_ly(type = 'scatter', x = ~startTime, y = ~station, color = chif(group,~type, ~caseID), 
-              symbol = ~type, mode = 'lines+markers')
-  }
-}
-
-TRANSPORT.plotTimeline = function(obj){
-  tbl = obj$history %>% filter(selected) %>% select(start = startTime, content = status, end = endTime, group = TDN) %>% mutate(id = 1:nrow(.), type = 'range')
-  tblgrp = data.frame(id = unique(tbl$group)) %>% mutate(content = id)
-  timevis::timevis(data = tbl, groups = tblgrp)
-}
-
-
 # Generates random values with given distribution subject to being greater than x0
 # If you want to generate N random values with a distribution specified by cdf F(x) given that x > x0,
 # F.inv(a*u + 1 - a)
@@ -645,22 +579,6 @@ interval.union = function(I1, I2){
     }
   }
   mix %>% mutate(inflag = inflag.x | inflag.y) %>% mutate(nextFlag = c(inflag[-1], !last(inflag))) %>% filter(inflag != nextFlag) %>% select(value, inflag)
-}
-
-# should be changed! Does not work properly!
-crash_buffer = function(td, ta, yd, ya, t1, t2, y1, y2){
-  delta_y = ya - yd
-  delta_t = ta - td
-  twait = function(t, y) t - td - (y - yd)*delta_t/delta_y
-  b1 = twait(t1, y1) %>% {.[.<0]<-NA;.}
-  b2 = twait(t2, y2) %>% {.[.<0]<-NA;.}
-  b2[which(t1>ta)]<-NA
-  b1[which(t2<td)]<-NA
-  b2[which(t2<td)]<-NA
-  
-  # max(b2) < t < min(b1)
-  b1 = b1[b2 < b1]
-  return(c(b1, b2))
 }
 
 # checks if any two transitions in the transition history (eventlog), encounter each other and returns a list of encounters
@@ -1405,26 +1323,6 @@ TRANSYS.plot.case.journey = function(obj, case_id){
   obj$history %>% filter(caseID == case_id) %>% arrange(startTime) %>% add_status_factor %>% 
     viserPlot(x = 'startTime', y = 'status_factor', plotter = 'plotly', type = 'combo', shape = 'line.point')
 }
-
-to.caseID.status.startTime = function(hist){
-  hist %>% reshape2::dcast(caseID ~ status, value.var = 'startTime', fun.aggregate = min) %>% column2Rownames('caseID') -> wide
-  for(i in sequence(ncol(wide))) {wide[,i] %<>% as.POSIXct(origin = '1970-01-01')}
-  return(wide)  
-}
-
-to.status.caseID.startTime = function(hist){
-  hist %>% reshape2::dcast(status ~ caseID, value.var = 'startTime', fun.aggregate = min) %>% column2Rownames('status') -> wide
-  for(i in sequence(ncol(wide))) {wide[,i] %<>% as.POSIXct(origin = '1970-01-01')}
-  return(wide)  
-}
-
-# x$history %>% filter(startDate == '2018-01-01') %>% to.status.caseID.startTime %>% rownames2Column('status') %>% add_status_factor()
-#   viserPlot(plotter = 'plotly', x = list('HKN'))
-# 
-#   
-#   # example x %>% plot.case.journey(case_id = '4001_2018-01-01')
-#   
-#   
 
 TRANSYS.plot.case.journey = function(obj){
 

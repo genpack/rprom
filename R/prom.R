@@ -82,7 +82,7 @@ PROCESS = setRefClass('PROCESS',
 
                         #
                         feedEventLog = function(dataset, caseID_col, activity_col, status_col = NULL, actGroup_col = NULL, team_col = NULL, time_col, agent_col = NULL, eventID_col = NULL, taskID_col = NULL, eventType_col = NULL,
-                                                arrivalTag = 'arrival', startTag = 'start', completeTag = 'complete', suspendTag = 'suspend', caseStartTag = 'caseStart', caseEndTag = 'caseEnd',
+                                                arrivalTag = 'arrived', startTag = 'started', completeTag = 'completed', suspendTag = 'suspended', caseStartTag = 'caseStart', caseEndTag = 'caseEnd',
                                                 correct = T, silent = T){
 
                           dataset %<>% nameColumns(

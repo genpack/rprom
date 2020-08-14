@@ -63,7 +63,7 @@ getHazard = function(data, tenure_col, status_col, count_col, normalize_hazard =
 # converts eventlog to caseprofile
 el2cvp = function(eventlog, ...){
   aggregators = c(...) %>% verify('character')
-  scr = "eventlog %>% arrange(caseID, eventTime) %>% group_by(caseID, variable) %>% summarise("
+  scr = "eventlog %>% arrange(caseID, eventTime) %>% group_by(caseID, attribute) %>% summarise("
   nms = names(aggregators)
   N   = length(nms)
   for(i in sequence(N)){
@@ -97,7 +97,7 @@ el2cp = function(eventlog, ...){
     aggrmap = c(sum = 'sum', mean = 'AVG', last = 'last_value', first = 'first_value', min = 'MIN', max = 'MAX', count = 'COUNT')
     agglist = aggrmap[aggregators] %>% {names(.) <- rep('value', length(.));as.list(.)}
 
-    eventlog %>% sdf_pivot(caseID ~ variable, fun.aggregate = agglist)
+    eventlog %>% sdf_pivot(caseID ~ attribute, fun.aggregate = agglist)
   }
 }
 
@@ -106,7 +106,7 @@ cvp2cp = function(cvp, cvp_cols){
 
   lst = rep('last_value', length(cvp_cols)) %>% {names(.)<-cvp_cols;as.list(.)}
 
-  cvp %>% sdf_pivot(caseID ~ variable, fun.aggregate = lst)
+  cvp %>% sdf_pivot(caseID ~ attribute, fun.aggregate = lst)
 }
 
 cp2cpag = function(cp, catcols){
@@ -119,3 +119,5 @@ cp2cpag = function(cp, catcols){
 
   parse(text = scr) %>% eval
 }
+
+  
