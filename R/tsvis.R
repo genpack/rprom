@@ -139,7 +139,7 @@ plot.traces.bar  = function(obj, measure = c('freq', 'time'), time_unit = c('sec
     TBL$tooltip = TBL$path %>% paste0('  ', ags[aggregator], ' Process Time: ', TBL %>% pull(agg[aggregator] %++% 'Time') %>% round(digits = 2), ' ',time_unit, 's')
     TBL %>%
       dplyr::arrange_(coln) %>%
-      viserPlot(x = coln, y = 'variation', tooltip = 'tooltip', type = 'bar', plotter = plotter, color = gener::color.mean('red', 'white'), ...)
+      viserPlot(x = coln, y = 'variation', tooltip = 'tooltip', type = 'bar', plotter = plotter, color = rutils::color.mean('red', 'white'), ...)
   }
 }
 
@@ -182,7 +182,7 @@ plot.statuses.bar = function(obj, measure = c('freq', 'totTime'), time_unit = c(
   cfg = list(title = chif(measure == 'freq', 'Status Entry Frequencies', 'Status Durations'),
              xAxis.label = chif(measure == 'freq', 'Frequency', 'Duration'),
              yAxis.label = 'Status',
-             point.color = chif(measure == 'freq', NULL, gener::color.mean('white', 'red')))
+             point.color = chif(measure == 'freq', NULL, rutils::color.mean('white', 'red')))
 
   ND[, colname[measure]] <- k*ND[, colname[measure]]
   ND$tooltip <- ND$status %>% paste0('  (', vrs[measure],': ', ND %>% pull(colname[measure]) %>% round(digits = 2), tus, ')')

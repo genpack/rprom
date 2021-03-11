@@ -12,13 +12,13 @@ Reference class containing some properties and methods required for survival mod
 
 \describe{
 \item{\code{data}}{list A list of tables. Table names can be: el (event log), cel (current eventlog), cp (case profile), ccp (current case profile), 
-cvp (case-variable profile), ccvp(current case-variable profile), cpt (case profile time), ccpt (current case profile time), 
+cvp (case-attribute profile), ccvp(current case-attribute profile), cpt (case profile time), ccpt (current case profile time), 
 cpag (case profile aggregated), ccpag (current case profile aggregated)}
 
 \item{\code{report}}{list A list of tables containing analysis reports.}
 
-\item{\code{settings}}{list A list of class settings. Has following parameters: caseID_col, eventTime_col, eventType_col, variable_col, value_col,
-caseStart_tag, caseEnd_tag, age_varname, deathReason_varname, cp_variables, normalize_hazard, cp_aggregators, cp_binners, cp_categoricals, cp_variables}
+\item{\code{settings}}{list A list of class settings. Has following parameters: caseID_col, eventTime_col, eventType_col, attribute_col, value_col,
+caseStart_tag, caseEnd_tag, age_varname, deathReason_varname, cp_attributes, normalize_hazard, cp_aggregators, cp_binners, cp_categoricals, cp_attributes}
 }}
 
 \section{Methods}{

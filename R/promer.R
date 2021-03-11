@@ -4,15 +4,15 @@
 #'
 #' @docType package
 #' @name promer
-#' @import gener
 #' @include transys.R
 #' @include prom.R
 #' @include promtools.R
 #' @include prosim.R
 #' @include tstools.R
 #' @include tsvis.R
+#' @include dfgtools.R
 
-# Current Version: 1.9.0
+# Current Version: 1.9.2
 # Issue Date: 08 November 2016
 # Last Issue: 11 March 2021
 
@@ -59,7 +59,7 @@
 # 1.7.9       20 August 2019       transys.R changed to version 0.8.3
 # 1.8.0       9 September 2019     tstools.R changed to version 0.0.8
 # 1.8.3       9 September 2019     transys.R changed to version 0.8.6
-# 1.9.0       11 March 2021        dfgtools.R added
+# 1.9.2       11 March 2021        dfgtools.R added
 
 NULL
 #> NULL

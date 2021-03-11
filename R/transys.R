@@ -67,7 +67,7 @@ library(dplyr)
 empt = Sys.time()[-1]
 empd = Sys.Date()[-1]
 
-# This global variable is repeated in prom, can transfer to gener
+# This global variable is repeated in prom, can transfer to rutils
 #' @export
 timeUnitCoeff = c(hour = 3600, second = 1, minute = 60, day = 24*3600, week = 7*24*3600, year = 24*3600*365)
 

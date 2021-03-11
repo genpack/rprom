@@ -312,7 +312,7 @@ calculate.agent.summary.idleTime.fromTasklist = function(tasklist, full = F){
 
   w  = which(tasklist$agentPrevCompDate != tasklist$compDate | is.na(tasklist$agentPrevCompTime))
   t8 = tasklist$compDate[w] %>% as.character %>% paste('08:00:00') %>% as.POSIXct
-  # todo: This will change when function diffTime in gener can handle non-working hours
+  # todo: This will change when function diffTime in rutils can handle non-working hours
   w2 = which(tasklist$startTime[w] < t8)
 
   tasklist$agentPrevCompTime[w] = t8
