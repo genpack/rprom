@@ -25,7 +25,7 @@
 ############### Process Overview Visualisations:
 
 # plots process map for the transition system
-#' @export plot.process.map
+#' @export plot_process_map
 plot_process_map = function(obj, measure = c('freq', 'time', 'rate'), time_unit = c('second', 'minute', 'hour', 'day', 'week', 'year'), plotter = c('grviz', 'visNetwork'), config = NULL, remove_ends = F, ...){
   plotter   = match.arg(plotter)
   measure   = match.arg(measure)

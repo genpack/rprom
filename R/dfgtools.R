@@ -9,7 +9,7 @@
 
 # Tools to map event-log into training dataset for machine learning:
 # MLMpaaer.periodic converts an eventlog into a mix of multivariate time series.  Each caseID, will have a time series for itself.
-MLMapper.periodic = function(eventlog, features, period = c('hour', 'day', 'week', 'month', 'year'), start = NULL, end = NULL){
+dfg.periodic = function(eventlog, features, period = c('hour', 'day', 'week', 'month', 'year'), start = NULL, end = NULL){
   period = match.arg(period)
   eventlog$eventTime %<>% as.POSIXct %>% lubridate::force_tz('GMT')
   if(!is.null(start)){start %<>% as.POSIXct %>% lubridate::force_tz('GMT'); eventlog %<>% filter(eventTime > start - 1)}
@@ -39,7 +39,7 @@ MLMapper.periodic = function(eventlog, features, period = c('hour', 'day', 'week
   return(molten)
 }
 
-MLMapper.periodic.old = function(eventlog, features, period = c('hour', 'day', 'week', 'month', 'year'), start = NULL, end = NULL){
+dfg.periodic.old = function(eventlog, features, period = c('hour', 'day', 'week', 'month', 'year'), start = NULL, end = NULL){
   period = match.arg(period)
   eventlog$eventTime %<>% as.POSIXct %>% lubridate::force_tz('GMT')
   if(!is.null(start)){start %<>% as.POSIXct %>% lubridate::force_tz('GMT'); eventlog %<>% filter(eventTime > start - 1)}
@@ -73,7 +73,7 @@ MLMapper.periodic.old = function(eventlog, features, period = c('hour', 'day', '
 }
 
 # currently, only works for daily
-MLMapper.periodic.sparklyr = function(eventlog, features, period = 'day', start = NULL, end = NULL){
+dfg.periodic.sparklyr = function(eventlog, features, period = 'day', start = NULL, end = NULL){
   period = match.arg(period)
   if(!is.null(start)){start %<>% as.POSIXct %>% lubridate::force_tz('GMT'); eventlog %<>% filter(eventTime > start - 1)}
   if(!is.null(end))  {end   %<>% as.POSIXct %>% lubridate::force_tz('GMT'); eventlog %<>% filter(eventTime < end + 1)}
@@ -135,7 +135,7 @@ vect.future = function(location, vector, win_size, fun, late_call = F){
 }
 
 # Only for moving windows not growing
-MLMapper.historic.old = function(periodic, features, early_call = T){
+dfg.historic.old = function(periodic, features, early_call = T){
   drops = character()
   for (ft in features){
     if(is.null(ft$drop_reference)){ft$drop_reference = F}
@@ -147,7 +147,7 @@ MLMapper.historic.old = function(periodic, features, early_call = T){
   return(periodic[, colnames(periodic) %>% setdiff(drops)])
 }
 
-MLMapper.historic = function(periodic, features, caseID_col = 'caseID', eventTime_col = 'eventTime'){
+dfg.historic = function(periodic, features, caseID_col = 'caseID', eventTime_col = 'eventTime'){
   drops = character()
   periodic %<>% mutate(.row = sequence(nrow(.))) %>% arrange_(caseID_col, eventTime_col)
     
@@ -178,7 +178,7 @@ MLMapper.historic = function(periodic, features, caseID_col = 'caseID', eventTim
   return(periodic[, colnames(periodic) %>% setdiff(drops)] %>% arrange(.row) %>% select(-.row))
 }
 
-MLMapper.labeler = function(periodic, features){
+dfg.labeler = function(periodic, features){
   drops = character()
   for (ft in features){
     if(is.null(ft$drop_reference)){ft$drop_reference = F}
@@ -188,7 +188,7 @@ MLMapper.labeler = function(periodic, features){
   return(periodic[, colnames(periodic) %>% setdiff(drops)])
 }
 
-# This function helps you build list of features to pass to argument features of MLMapper.historic and MLMapper.labeler:
+# This function helps you build list of features to pass to argument features of dfg.historic and dfg.labeler:
 add_features = function(flist = list(), actions){
   for (act in actions){
     for (ft in act$features){
@@ -198,8 +198,10 @@ add_features = function(flist = list(), actions){
   return(flist)
 }
 
+# This function generates a package of multiple tables containing dynamic features from a given eventlog
 # evenTime must be of class Date, otherwise, modify accordingly:
-ml_pack = function(el, period = c('day', "week", "month", "quarter", "year", "sec", "min", "hour"), sequential = F,
+#' @export dfg_pack
+dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "sec", "min", "hour"), sequential = F,
                    event_funs = c('count', 'elapsed', 'tte', 'censored'), attr_funs = NULL, var_funs = NULL, horizon = NULL){
   period = match.arg(period)
   
@@ -307,7 +309,9 @@ ml_pack = function(el, period = c('day', "week", "month", "quarter", "year", "se
   if(('tte' %in% event_funs) | ('censored' %in% event_funs)){
     out$event_tte <- out$event_time %>% column.feed.backward(col = cols, id_col = 'caseID')
     for(i in cols){
-      out$event_tte[, i] = as.numeric(as.Date(out$event_tte[, i]) - out$event_tte$eventTime) %>% {.[.<0]<-NA;.}
+      ind = which(as.Date(out$event_tte[, i]) < out$event_tte$eventTime) %-% nrow(out$event_tte)
+      out$event_tte[ind, i] <- out$event_tte[ind + 1, i]
+      out$event_tte[, i]    <- as.numeric(as.Date(out$event_tte[, i]) - out$event_tte$eventTime) %>% {.[.<0]<-NA;.}
     }
   }
 
@@ -430,23 +434,23 @@ ml_pack = function(el, period = c('day', "week", "month", "quarter", "year", "se
   if(!is.null(horizon)){
     out %<>% add_event_labels(horizon %>% verify(c('integer', 'numeric'), lengths = 1, domain = c(1, Inf)))
   }
-  return(out %>% standard_mlpack_feature_names)
+  return(out %>% standard_dfgpack_feature_names)
 }
 
-standard_mlpack_feature_names = function(mlpack){
-  for(tn in names(mlpack) %-% c('extras', 'case_timends', 'event_attr_map')){
+standard_dfgpack_feature_names = function(dfgpack){
+  for(tn in names(dfgpack) %-% c('extras', 'case_timends', 'event_attr_map')){
     suffix = strsplit(tn, '_')[[1]] %-% c('event', 'attr', 'var') %>% paste(collapse = '_')
-    colnames(mlpack[[tn]]) <- c('caseID', 'eventTime', colnames(mlpack[[tn]])[-c(1,2)] %>% paste(suffix, sep = '_'))
+    colnames(dfgpack[[tn]]) <- c('caseID', 'eventTime', colnames(dfgpack[[tn]])[-c(1,2)] %>% paste(suffix, sep = '_'))
   }
-  return(mlpack)
+  return(dfgpack)
 }
 
-add_event_labels = function(mlpack, horizon){
-  cols = 3:ncol(mlpack$event_tte)
-  event_label = mlpack$event_tte
-  event_label[, cols] <- as.numeric((mlpack$event_censored[, cols] == 0) & (mlpack$event_tte[, cols] < horizon) & (mlpack$event_tte[, cols] > 0))
-  mlpack$event_label = event_label
-  return(mlpack)
+add_event_labels = function(dfgpack, horizon){
+  cols = 3:ncol(dfgpack$event_tte)
+  event_label = dfgpack$event_tte
+  event_label[, cols] <- as.numeric((dfgpack$event_censored[, cols] == 0) & (dfgpack$event_tte[, cols] < horizon) & (dfgpack$event_tte[, cols] > 0))
+  dfgpack$event_label = event_label
+  return(dfgpack)
 }
 
 
@@ -473,7 +477,7 @@ ml_event_interval = function(
     mutate(eventNo = paste0('E', eventID %>% as.character %>% as.factor %>% as.integer)) %>%
     mutate(eventType = paste0(eventNo, eventType)) %>%
     select(-eventID, -eventNo) %>%
-    ml_pack(period = period, event_funs = c('count_cumsum', 'elapsed'), sequential = sequential) -> pack
+    dfg_pack(period = period, event_funs = c('count_cumsum', 'elapsed'), sequential = sequential) -> pack
 
   colnames(pack$event_count_cumsum) %>% charFilter('started') -> start_events
   start_events %>% gsub(pattern = 'started', replacement = 'ended') -> end_events
@@ -499,42 +503,42 @@ ml_event_interval = function(
   countActiveEvents %>% left_join(caseActiveAge, by = c('caseID', 'eventTime')) %>% mutate(status = numEventsActive > 0)
 }
 
-# ml_sliding = function(ml_pack, table_funs = list(event_count = c('sum90', 'mean120'), attr_max = c('mean15', 'max180'))){
+# ml_sliding = function(dfg_pack, table_funs = list(event_count = c('sum90', 'mean120'), attr_max = c('mean15', 'max180'))){
 #   funs = table_funs$event_count %>% gsub(pattern = "[0-9]", replacement = "")
 #   nums = table_funs$event_count %>% gsub(pattern = "[a-z, A-Z]", replacement = "")
-#   cols = 3:ncol(ml_pack$event_count)
+#   cols = 3:ncol(dfg_pack$event_count)
 #   
 #   tn = 'event_count' %>% paste(table_funs$event_count[1], sep = '_')
-#   out[[tn]] <- ml_pack$event_count
+#   out[[tn]] <- dfg_pack$event_count
 #   for(i in 1:cols){
-#     which(ml_pack$event_elapsed[, i] < nums[1]) -> ind
-#     ml_pack$event_elapsed[ind, i] %>% ave(id = ml_pack$event_elapsed[ind, 'caseID'], FUN = validfun[funs[1]])    
+#     which(dfg_pack$event_elapsed[, i] < nums[1]) -> ind
+#     dfg_pack$event_elapsed[ind, i] %>% ave(id = dfg_pack$event_elapsed[ind, 'caseID'], FUN = validfun[funs[1]])    
 #   }
 # }
 
-# This module, runs a predictive model using each history table in the ml-pack as training data and 
+# This module, runs a predictive model using each history table in the dfg-pack as training data and 
 # ranks features by importance and measures model performance. Features of importance greater than
 # argument 'importance_threshold' from models with performance greater than 'performance_threshold'
 # are selected and a single dataset is returned.
-extract_mldata_from_mlpack = function(mlpack, train_from, train_to, test_from, test_to, label_event, importance_threshold, performance_threshold, performance_metric = 'gini', silent = T){
+extract_features_from_dfgpack = function(dfgpack, train_from, train_to, test_from, test_to, label_event, importance_threshold, performance_threshold, performance_metric = 'gini', silent = T){
   models = list()
   
-  ind_train = which((mlpack$event_label$eventTime >= train_from) & (mlpack$event_label$eventTime <= train_to))
-  ind_test  = which((mlpack$event_label$eventTime >= test_from) & (mlpack$event_label$eventTime <= test_to))
+  ind_train = which((dfgpack$event_label$eventTime >= train_from) & (dfgpack$event_label$eventTime <= train_to))
+  ind_test  = which((dfgpack$event_label$eventTime >= test_from) & (dfgpack$event_label$eventTime <= test_to))
   
   label_col = label_event %>% paste('label', sep = '_') 
-  y_train   = mlpack$event_label[ind_train,] %>% pull(label_col)
-  y_test    = mlpack$event_label[ind_test,]  %>% pull(label_col)
+  y_train   = dfgpack$event_label[ind_train,] %>% pull(label_col)
+  y_test    = dfgpack$event_label[ind_test,]  %>% pull(label_col)
   
-  history_tables = names(mlpack) %-% c('case_timends', 'event_attr_map', 'event_time', 'event_tte', 'event_censored', 'event_label')
+  history_tables = names(dfgpack) %-% c('case_timends', 'event_attr_map', 'event_time', 'event_tte', 'event_censored', 'event_label')
 
   ## Train models and measure performances:
   perf = numeric()
   for(tn in history_tables){
-    X_train = mlpack[[tn]][ind_train,] %>% select(-caseID, -eventTime)
-    X_test  = mlpack[[tn]][ind_test,]  %>% select(-caseID, -eventTime)
+    X_train = dfgpack[[tn]][ind_train,] %>% select(-caseID, -eventTime)
+    X_test  = dfgpack[[tn]][ind_test,]  %>% select(-caseID, -eventTime)
     
-    mdl = new('CLS.SCIKIT.XGB', n_jobs = as.integer(8), rfe.enabled = T, name = tn)
+    mdl = new('CLS.XGBOOST', nthread = as.integer(4), rfe.enabled = T, name = tn)
     mdl$fit(X_train, y_train)
     
     perf[tn]     <- mdl$performance(X_test, y_test, metric = performance_metric)
@@ -557,28 +561,30 @@ extract_mldata_from_mlpack = function(mlpack, train_from, train_to, test_from, t
   }
   
   tn = history_tables[1]
-  mldata <- mlpack[[tn]][fl$fname %^% colnames(mlpack[[tn]])]
+  mldata <- dfgpack[[tn]][fl$fname %^% colnames(dfgpack[[tn]])]
   for(tn in history_tables[-1]){
-    cn = fl$fname %^% colnames(mlpack[[tn]])
-    mlpack[[tn]][cn] %>% cbind(mldata) -> mldata
+    cn = fl$fname %^% colnames(dfgpack[[tn]])
+    dfgpack[[tn]][cn] %>% cbind(mldata) -> mldata
   }
   
   return(mldata)
 }
 
-add_sliding_window_features = function(mlpack, tables = NULL, aggregators = NULL, win_sizes = NULL){
-  if(is.empty(win_sizes)) return(mlpack)
+# This function enrichs the given dfg package by adding various sliding window features to it.
+#' @export dfg_pack
+add_swf = function(dfgpack, tables = NULL, aggregators = NULL, win_sizes = NULL){
+  if(is.empty(win_sizes)) return(dfgpack)
   
   aggr_list = list(sum = sum, avg = mean, med = median, min = min, max = max, sdv = sd)
   
-  tables %<>% verify('character', domain = names(mlpack), default = 
-                       names(mlpack) %-% c('case_timends', 'event_attr_map', 'event_time', 'event_tte', 'event_censored', 'event_label'))
+  tables %<>% verify('character', domain = names(dfgpack), default = 
+                       names(dfgpack) %-% c('case_timends', 'event_attr_map', 'event_time', 'event_tte', 'event_censored', 'event_label'))
 
   aggregators %<>% verify('character', domain = names(aggr_list), default = 'sum')
 
   for(tn in tables){
     features = list()
-    for(en in colnames(mlpack[[tn]]) %-% c('caseID', 'eventTime', 'clock')){
+    for(en in colnames(dfgpack[[tn]]) %-% c('caseID', 'eventTime', 'clock')){
       for(ag in aggregators){
         for(i in win_sizes){
           fn = paste(en, ag %++% i, sep = '_')
@@ -586,31 +592,38 @@ add_sliding_window_features = function(mlpack, tables = NULL, aggregators = NULL
         }
       }
     }
-    mlpack[[tn]] %<>% MLMapper.historic(features)
+    dfgpack[[tn]] %<>% dfg.historic(features)
   }
   
-  return(mlpack)
+  return(dfgpack)
 }
 
 
 
 
-create_feature_trend = function(mlpack, table, features, label_event, aggregator = mean, remove_censored = F){
+create_feature_trend = function(dfgpack, table, features, label_event, aggregator = mean, remove_censored = F){
   if(remove_censored){
-    tbr = which(mlpack$event_censored[, label_event] == 0)
-    mlpack[[table]] = mlpack[[table]][tbr,]
-    mlpack[['event_label']] = mlpack[['event_label']][tbr,]
+    tbr = which(dfgpack$event_censored[, label_event] == 0)
+    dfgpack[[table]] = dfgpack[[table]][tbr,]
+    dfgpack[['event_label']] = dfgpack[['event_label']][tbr,]
   }
-  stopifnot(table %in% names(mlpack))
-  val = mlpack[[table]][features]
+  stopifnot(table %in% names(dfgpack))
+  val = dfgpack[[table]][features]
   if(length(features) > 1) val %<>% rowSums(na.rm = T)
-  mlpack[[table]][, 'value'] = val
-  mlpack[[table]][, 'label'] = ifelse(mlpack$event_label[, label_event] == 1, 'Yes', 'No')
+  dfgpack[[table]][, 'value'] = val
+  dfgpack[[table]][, 'label'] = ifelse(dfgpack$event_label[, label_event] == 1, 'Yes', 'No')
   
-  mlpack[[table]] %>% group_by(eventTime, label) %>%
+  dfgpack[[table]] %>% group_by(eventTime, label) %>%
     summarise(value = aggregator(value)) %>%
     reshape2::dcast(eventTime ~ label) %>% na2zero %>%
     arrange(eventTime)
 }
 
+dfgpack.remove_clock.events = function(pack){
+  for(tn in names(pack)){
+    cns = colnames(pack[[tn]])
+    pack[[tn]] <- pack[[tn]][cns %-% charFilter(cns, 'clock')]
+  }
+  return(pack)
+}
 

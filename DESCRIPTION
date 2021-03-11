@@ -2,8 +2,8 @@ Package: promer
 Type: Package
 Title: This package will be a complete toolbox for process mining, management, prediction, simulation and optimization
 Imports: gener
-Version: 1.8.3
-Date: 09 September 2019
+Version: 1.9.0
+Date: 11 March 2021
 Author: Nicolas Berta
 Maintainer: Nicolas Berta <nicolas.berta@gmail.com>
 Description: The package is still under construction. Documentation incomplete! Use at your own risk!
@@ -11,6 +11,8 @@ License: MIT
 LazyData: TRUE
 RoxygenNote: 6.1.1
 Collate:
+    'elsyd.R'
+    'mlmtools.R'
     'prom.R'
     'tsvis.R'
     'tstools.R'
@@ -21,3 +23,6 @@ Collate:
     'promvis.R'
     'survival.R'
     'survtools.R'
+    'transagent.R'
+    'transport.R'
+    'transtools.R'
