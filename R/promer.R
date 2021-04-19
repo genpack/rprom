@@ -12,9 +12,9 @@
 #' @include tsvis.R
 #' @include dfgtools.R
 
-# Current Version: 1.9.2
+# Current Version: 1.9.7
 # Issue Date: 08 November 2016
-# Last Issue: 11 March 2021
+# Last Issue: 17 April 2021
 
 # Version     Date                 Action
 # ----------------------------------
@@ -60,6 +60,7 @@
 # 1.8.0       9 September 2019     tstools.R changed to version 0.0.8
 # 1.8.3       9 September 2019     transys.R changed to version 0.8.6
 # 1.9.2       11 March 2021        dfgtools.R added
-
+# 1.9.3       16 April 2021        minor change in dfgtools.R function dfg_pack() 
+# 1.9.7       17 April 2021        function moving_aggregator() added: function dfg.historic() updated. 
 NULL
 #> NULL

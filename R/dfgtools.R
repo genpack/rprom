@@ -115,6 +115,7 @@ dfg.periodic.sparklyr = function(eventlog, features, period = 'day', start = NUL
   return(molten)
 }
 
+# if early_call is true and location is less than win_size (early), then aggregator is applied on the smaller window from start to location 
 vect.history = function(location, vector, win_size, fun, early_call = F){
   if(location < win_size){
     if(early_call){out = do.call(fun, args = list(vector[sequence(location)]))} else {out = NA}
@@ -147,34 +148,80 @@ dfg.historic.old = function(periodic, features, early_call = T){
   return(periodic[, colnames(periodic) %>% setdiff(drops)])
 }
 
+# This function has been stolen from pracma::movavg with a modification: aggregator function can be passed as an argument and it only works for types s and t
+# Types of available moving averages are:
+#   
+#   s for “simple”, it computes the simple moving average. n indicates the number of previous data points used with the current data point when calculating the moving average.
+# 
+# t for “triangular”, it computes the triangular moving average by calculating the first simple moving average with window width of ceil(n+1)/2; then it calculates a second simple moving average on the first moving average with the same window size.
+# 
+# w for “weighted", it calculates the weighted moving average by supplying weights for each element in the moving window. Here the reduction of weights follows a linear trend.
+# 
+# m for “modified", it calculates the modified moving average. The first modified moving average is calculated like a simple moving average. Subsequent values are calculated by adding the new value and subtracting the last average from the resulting sum.
+# 
+# e for“exponential", it computes the exponentially weighted moving average. The exponential moving average is a weighted moving average that reduces influences by applying more weight to recent data points () reduction factor 2/(n+1); or
+# 
+# r for“running", this is an exponential moving average with a reduction factor of 1/n [same as the modified average?].
+# if n = Inf, it comutes cumulative aggregator
+# for types r, e, m, w, aggregator is not used at all.
+#' @export
+moving_aggregator = function (x, n = Inf, type = c("s", "t", "w", "m", "e", "r"), aggregator = mean){
+  stopifnot(is.numeric(x), is.numeric(n), is.character(type))
+  type = match.arg(type)
+  if (length(n) != 1 || ceiling(n != floor(n)) || n <= 1) 
+    stop("Window length 'n' must be a single integer greater 1.")
+  nx <- length(x)
+  n  <- min(n, nx - 1)
+  y  <- numeric(nx)
+  if (type == "s") {
+    for (k in 1:(n - 1)) y[k] <- aggregator(x[1:k])
+    for (k in n:nx) y[k] <- aggregator(x[(k - n + 1):k])
+  }
+  else if (type == "t") {
+    n <- ceiling((n + 1)/2)
+    s <- moving_aggregator(x, n, "s", aggregator = aggregator)
+    y <- moving_aggregator(s, n, "s", aggregator = aggregator)
+  }
+  else if (type == "w") {
+    for (k in 1:(n - 1)) y[k] <- 2 * sum((k:1)*x[k:1])/(k*(k + 1))
+    for (k in n:nx) y[k] <- 2*sum((n:1)*x[k:(k - n + 1)])/(n*(n + 1))
+  }
+  else if (type == "m") {
+    y[1] <- x[1]
+    for (k in 2:nx) y[k] <- y[k - 1] + (x[k] - y[k - 1])/n
+  }
+  else if (type == "e") {
+    a <- 2/(n + 1)
+    y[1] <- x[1]
+    for (k in 2:nx) y[k] <- a * x[k] + (1 - a) * y[k - 1]
+  }
+  else if (type == "r") {
+    a <- 1/n
+    y[1] <- x[1]
+    for (k in 2:nx) y[k] <- a * x[k] + (1 - a) * y[k - 1]
+  }
+  else stop("The type must be one of 's', 't', 'w', 'm', 'e', or 'r'.")
+  return(y)
+}
+
+#' @export
 dfg.historic = function(periodic, features, caseID_col = 'caseID', eventTime_col = 'eventTime'){
   drops = character()
   periodic %<>% mutate(.row = sequence(nrow(.))) %>% arrange_(caseID_col, eventTime_col)
-    
+  
+  #todo: use parallel computing  
   for (ft in features){
     if(is.null(ft$drop_reference)){ft$drop_reference = F}
+    if(is.null(ft$aggregator)){ft$aggregator = mean}
+    if(is.null(ft$type)){ft$type = 's'}
     if(ft$win_size < 2){ft$win_size = 2}
-    switch(ft$aggregator,
-           sum = {ft_fun = function(v) {
-             if(length(v) <= ft$win_size){return(mean(v))}
-             pracma::movavg(x = v, n = ft$win_size, type = chif(is.null(ft$type), 's', ft$type))*ft$win_size
-           }},
-           avg = {
-             ft_fun = function(v) {
-               if(length(v) <= ft$win_size){return(mean(v))}
-               pracma::movavg(x = v, n = ft$win_size, type = chif(is.null(ft$type), 's', ft$type))
-           }},
-           med = {stop("Not Supported Yet")},
-           min = {stop("Not Supported Yet")},
-           max = {stop("Not Supported Yet")}
-    )
-    # todo: write functions movmed, movsd, movmax, movmin
     
+    ft_fun = function(v) moving_aggregator(x = v, n = ft$win_size, type = ft$type, aggregator = ft$aggregator)
+
     periodic %>% pull(ft$reference) %>% ave(id = periodic %>% pull(caseID_col), FUN = ft_fun) -> periodic[, ft$name]
       
     if(ft$drop_reference){drops = c(drops, ft$reference)}
   }
-  
   return(periodic[, colnames(periodic) %>% setdiff(drops)] %>% arrange(.row) %>% select(-.row))
 }
 
@@ -203,6 +250,7 @@ add_features = function(flist = list(), actions){
 #' @export dfg_pack
 dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "sec", "min", "hour"), sequential = F,
                    event_funs = c('count', 'elapsed', 'tte', 'censored'), attr_funs = NULL, var_funs = NULL, horizon = NULL){
+  cat('\n', "Verifications started ... ")
   period = match.arg(period)
   
   el %<>% as.data.frame %>% select(caseID, eventTime, eventType, attribute, value)
@@ -222,6 +270,9 @@ dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "s
   
   el$detailTime = el$eventTime
   
+  cat("Done!", '\n')
+  
+  cat('\n', "Managing event times ... ")
   if(period %in% c('day', "week", "month", "quarter", "year")){
     el$eventTime = as.Date(el$eventTime)
     if(period != 'day'){
@@ -252,12 +303,11 @@ dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "s
       el$eventTime = el$eventTime + 1
     }
   }
-
-  out = list()
-  el %>% group_by(caseID) %>% summarise(minTime = min(eventTime), maxTime = max(eventTime)) %>% ungroup -> out$case_timends
-  el %>% distinct(eventType, attribute) -> out$event_attr_map
-
+  cat("Done!", '\n')
+  
   if(sequential){
+    cat('\n', "Adding clock events ... ")
+    
     # Option 1:
     # bb = out$case_timends %>% group_by(caseID) %>%
     #   do({data.frame(caseID = .$caseID, eventTime = seq(from = as.Date(.$minTime), to = as.Date(.$maxTime), by = period))})
@@ -273,49 +323,71 @@ dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "s
       mutate(eventType = 'clock', attribute = 'counter', value = 1, detailTime = eventTime - 1) %>%
       select(caseID, eventType, eventTime, attribute, value, detailTime) %>%
       rbind(el) -> el
+    
+    cat("Done!", '\n')
   }
 
+  out = list()
+  cat('\n', "Creating time ends and event attribute maps ... ")
+  el %>% group_by(caseID) %>% summarise(minTime = min(eventTime), maxTime = max(eventTime)) %>% ungroup -> out$case_timends
+  el %>% distinct(eventType, attribute) -> out$event_attr_map
+  cat("Done!", '\n')
+  
   if(length(event_funs) > 0){
+    cat('\n', "Creating event count table ... ")
     el %>%
       reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'value', fun.aggregate = length) %>%
       arrange(caseID, eventTime) -> out$event_count
 
     cols = 3:ncol(out$event_count)
+    cat("Done!", '\n')
   }
 
   if('count_cumsum' %in% event_funs){
+    cat('\n', "Creating event count cumsum table ... ")
     out$event_count_cumsum = out$event_count %>% column.cumulative.forward(col = cols, id_col = 'caseID')
+    cat("Done!", '\n')
   }
 
   if(sum(c('elapsed', 'tte', 'censored') %in% event_funs) > 0){
+    cat('\n', "Creating event time table ... ")
     # out$event_time = out$event_count
     # tstr = as.character(out$event_time[, 'eventTime'])
     # out$event_time[, cols] %<>% as.matrix %>% apply(2, function(v) ifelse(v > 0, tstr, NA))
     el %>% mutate(detailTime = as.character(detailTime)) %>%
-      reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'detailTime', fun.aggregate = first) %>%
+      reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'detailTime', fun.aggregate = dplyr::first) %>%
       arrange(caseID, eventTime) -> out$event_time
+    cat("Done!", '\n')
   }
 
   #### event elapsed
   if('elapsed' %in% event_funs){
+    cat('\n', "Creating elapsed table ... ")
+    
     out$event_elapsed <- out$event_time %>% column.feed.forward(col = cols, id_col = 'caseID')
 
     for(i in cols){
       out$event_elapsed[, i] = as.numeric(out$event_elapsed$eventTime - as.Date(out$event_elapsed[, i]))
     }
+    cat("Done!", '\n')
   }
 
   #### event tte, censored
   if(('tte' %in% event_funs) | ('censored' %in% event_funs)){
+    cat('\n', "Creating tte table ... ")
+    
     out$event_tte <- out$event_time %>% column.feed.backward(col = cols, id_col = 'caseID')
     for(i in cols){
       ind = which(as.Date(out$event_tte[, i]) < out$event_tte$eventTime) %-% nrow(out$event_tte)
       out$event_tte[ind, i] <- out$event_tte[ind + 1, i]
       out$event_tte[, i]    <- as.numeric(as.Date(out$event_tte[, i]) - out$event_tte$eventTime) %>% {.[.<0]<-NA;.}
     }
+    cat("Done!", '\n')
   }
 
   if('censored' %in% event_funs){
+    cat('\n', "Creating censored table ... ")
+    
     out$event_censored = out$event_tte
     out$event_censored[, cols] <- is.na(out$event_tte[, cols]) %>% as.numeric
 
@@ -325,115 +397,175 @@ dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "s
       out$event_tte[wna, i] <- out$event_tte[wna, 'ttc']
     }
     out$event_tte %<>%  select(- minTime, - maxTime, -ttc)
+    cat("Done!", '\n')
   }
+  
   #### Periodic(PAFs) and Historic Aggregated Features (HAFs) for events:
   if('last' %in% event_funs){
+    cat('\n', "Creating event last value table ... ")
+    
     el %>% reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'value', fun.aggregate = last) %>%
       column.feed.forward(col = 3:ncol(.), id_col = 'caseID') -> out$event_last
+
+    cat("Done!", '\n')
   }
   
   if(sum(c('sum', 'sum_cumsum') %in% event_funs) > 0){
+    cat('\n', "Creating event sum value table ... ")
+    
     el %>% reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'value', fun.aggregate = sum) -> out$event_sum
+    cat("Done!", '\n')
   }
   
   if('sum_cumsum' %in% event_funs){
+    cat('\n', "Creating event cumulative sum value table ... ")
+    
     out$event_sum %>% column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID') -> out$event_sum_cumsum
+    cat("Done!", '\n')
   }
   
   if(sum(c('max', 'max_cummax') %in% event_funs) > 0){
+    cat('\n', "Creating event max value table ... ")
+    
     el %>% reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'value', fun.aggregate = max) -> out$event_max
+    cat("Done!", '\n')
   }
   
   if('max_cummax' %in% event_funs){
+    cat('\n', "Creating event cumulative max value table ... ")
     out$event_max %>%
       column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID', aggregator = cummax) %>%
       {.[. == -Inf]<-NA;.} -> out$event_max_cummax
+    cat("Done!", '\n')
   }
   
   if(sum(c('min', 'min_cummin') %in% event_funs) > 0){
+    cat('\n', "Creating event min value table ... ")
     el %>% reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'value', fun.aggregate = min) -> out$event_min
+    cat("Done!", '\n')
   }
   
   if('min_cummin' %in% event_funs){
+    cat('\n', "Creating event cumulative min value table ... ")
+    
     out$event_min %>%
       column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID', aggregator = cummin) %>%
       {.[. == Inf]<-NA;.} -> out$event_min_cummin
+    cat("Done!", '\n')
   }
   
   #### Periodic(PAFs) and Historic Aggregated Features (HAFs) for attributes:
+  
   if('last' %in% attr_funs){
+    cat('\n', "Creating attribute last value table ... ")
+    
     el %>% reshape2::dcast(caseID + eventTime ~ attribute, value.var = 'value', fun.aggregate = last) %>%
       column.feed.forward(col = 3:ncol(.), id_col = 'caseID') -> out$attr_last
+    cat("Done!", '\n')
   }
 
   if(sum(c('sum', 'sum_cumsum') %in% attr_funs) > 0){
+    cat('\n', "Creating attribute sum value table ... ")
     el %>% reshape2::dcast(caseID + eventTime ~ attribute, value.var = 'value', fun.aggregate = sum) -> out$attr_sum
+    cat("Done!", '\n')
   }
 
   if('sum_cumsum' %in% attr_funs){
+    cat('\n', "Creating attribute cumulative sum value table ... ")
     out$attr_sum %>% column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID') -> out$attr_sum_cumsum
+    cat("Done!", '\n')
   }
 
   if(sum(c('max', 'max_cummax') %in% attr_funs) > 0){
+    cat('\n', "Creating attribute max value table ... ")
     el %>% reshape2::dcast(caseID + eventTime ~ attribute, value.var = 'value', fun.aggregate = max) -> out$attr_max
+    cat("Done!", '\n')
   }
 
   if('max_cummax' %in% attr_funs){
+    cat('\n', "Creating attribute cumulative max value table ... ")
     out$attr_max %>%
       column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID', aggregator = cummax) %>%
       {.[. == -Inf]<-NA;.} -> out$attr_max_cummax
+    cat("Done!", '\n')
   }
 
   if(sum(c('min', 'min_cummin') %in% attr_funs) > 0){
+    cat('\n', "Creating attribute min value table ... ")
+    
     el %>% reshape2::dcast(caseID + eventTime ~ attribute, value.var = 'value', fun.aggregate = min) -> out$attr_min
+    cat("Done!", '\n')
   }
 
   if('min_cummin' %in% attr_funs){
+    cat('\n', "Creating attribute cumulative min value table ... ")
     out$attr_min %>%
       column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID', aggregator = cummin) %>%
       {.[. == Inf]<-NA;.} -> out$attr_min_cummin
+    cat("Done!", '\n')
   }
 
   #### Periodic(PAFs) and Historic Aggregated Features (HAFs) for Variable:
+  
   if(length(var_funs) > 0){
     el %<>% mutate(variable = paste(eventType, attribute, sep = '_'))
   }
 
   if('last' %in% var_funs){
+    cat('\n', "Creating variable last value table ... ")
     el %>% reshape2::dcast(caseID + eventTime ~ variable, value.var = 'value', fun.aggregate = last) %>%
       column.feed.forward(col = 3:ncol(.), id_col = 'caseID') -> out$var_last
+    cat("Done!", '\n')
   }
 
   if(sum(c('sum', 'sum_cumsum') %in% var_funs) > 0){
+    cat('\n', "Creating variable sum value table ... ")
     el %>% reshape2::dcast(caseID + eventTime ~ variable, value.var = 'value', fun.aggregate = sum) -> out$var_sum
+    cat("Done!", '\n')
   }
 
   if('sum_cumsum' %in% var_funs){
+    cat('\n', "Creating variable cumulative sum value table ... ")
     out$var_sum %>% column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID') -> out$var_sum_cumsum
+    cat("Done!", '\n')
   }
 
   if(sum(c('max', 'max_cummax') %in% var_funs) > 0){
+    cat('\n', "Creating variable max value table ... ")
     el %>% reshape2::dcast(caseID + eventTime ~ variable, value.var = 'value', fun.aggregate = max) -> out$var_max
+    cat("Done!", '\n')
   }
 
   if('max_cummax' %in% var_funs){
+    cat('\n', "Creating variable cumulative max value table ... ")
     out$var_max %>%
       column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID', aggregator = cummax) %>%
       {.[. == -Inf]<-NA;.} -> out$var_max_cummax
+    cat("Done!", '\n')
   }
 
   if(sum(c('min', 'min_cummin') %in% var_funs) > 0){
+    cat('\n', "Creating variable min value table ... ")
+    
     el %>% reshape2::dcast(caseID + eventTime ~ variable, value.var = 'value', fun.aggregate = min) -> out$var_min
+    cat("Done!", '\n')
   }
 
   if('cummin' %in% var_funs){
+    cat('\n', "Creating variable cumulative min value table ... ")
+    
     out$var_min %>%
       column.cumulative.forward(col = 3:ncol(.), id_col = 'caseID', aggregator = cummin) %>%
       {.[. == Inf]<-NA;.} -> out$var_min_cummin
+    cat("Done!", '\n')
   }
+  
   if(!is.null(horizon)){
+    cat('\n', "Creating event label table ... ")
     out %<>% add_event_labels(horizon %>% verify(c('integer', 'numeric'), lengths = 1, domain = c(1, Inf)))
+    cat("Done!", '\n')
   }
+  
   return(out %>% standard_dfgpack_feature_names)
 }
 
@@ -448,7 +580,9 @@ standard_dfgpack_feature_names = function(dfgpack){
 add_event_labels = function(dfgpack, horizon){
   cols = 3:ncol(dfgpack$event_tte)
   event_label = dfgpack$event_tte
-  event_label[, cols] <- as.numeric((dfgpack$event_censored[, cols] == 0) & (dfgpack$event_tte[, cols] < horizon) & (dfgpack$event_tte[, cols] > 0))
+  # I don't recall why I added extra condition: (dfgpack$event_tte[, cols] > 0). It fails when tte = 0 
+  # event_label[, cols] <- as.numeric((dfgpack$event_censored[, cols] == 0) & (dfgpack$event_tte[, cols] < horizon) & (dfgpack$event_tte[, cols] > 0))
+  event_label[, cols] <- as.numeric((dfgpack$event_censored[, cols] == 0) & (dfgpack$event_tte[, cols] < horizon))
   dfgpack$event_label = event_label
   return(dfgpack)
 }
@@ -571,8 +705,8 @@ extract_features_from_dfgpack = function(dfgpack, train_from, train_to, test_fro
 }
 
 # This function enrichs the given dfg package by adding various sliding window features to it.
-#' @export dfg_pack
-add_swf = function(dfgpack, tables = NULL, aggregators = NULL, win_sizes = NULL){
+#' @export add_swf
+add_swf = function(dfgpack, tables = NULL, aggregators = NULL, win_sizes = NULL, types = 's'){
   if(is.empty(win_sizes)) return(dfgpack)
   
   aggr_list = list(sum = sum, avg = mean, med = median, min = min, max = max, sdv = sd)
@@ -580,19 +714,29 @@ add_swf = function(dfgpack, tables = NULL, aggregators = NULL, win_sizes = NULL)
   tables %<>% verify('character', domain = names(dfgpack), default = 
                        names(dfgpack) %-% c('case_timends', 'event_attr_map', 'event_time', 'event_tte', 'event_censored', 'event_label'))
 
-  aggregators %<>% verify('character', domain = names(aggr_list), default = 'sum')
+  aggregators <- verify(aggregators, 'character', domain = names(aggr_list), default = 'sum')
 
   for(tn in tables){
+    cat('\n', 'Adding sliding window features for table: ', tn, ' ... ')
     features = list()
     for(en in colnames(dfgpack[[tn]]) %-% c('caseID', 'eventTime', 'clock')){
-      for(ag in aggregators){
+      for(tp in intersect(types, c('s', 't'))){
+        for(ag in aggregators){
+          for(i in win_sizes){
+            fn = sprintf('%s_%s%s%s', en, ag, chif(tp == 's', '', tp), i)
+            features[[fn]] <- list(name = fn, reference = en, win_size = i, aggregator = aggr_list[[ag]], type = tp)
+          }
+        }
+      }
+      for(tp in intersect(types, c('w', 'm', 'e', 'r'))){
         for(i in win_sizes){
-          fn = paste(en, ag %++% i, sep = '_')
-          features[[fn]] <- list(name = fn, reference = en, win_size = i, aggregator = aggr_list[[ag]])
+          fn = sprintf('%s_avg%s%s', en, tp, i)
+          features[[fn]] <- list(name = fn, reference = en, win_size = i, type = tp)
         }
       }
     }
     dfgpack[[tn]] %<>% dfg.historic(features)
+    cat('Done!', '\n')
   }
   
   return(dfgpack)
