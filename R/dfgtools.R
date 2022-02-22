@@ -247,7 +247,7 @@ add_features = function(flist = list(), actions){
 
 # This function generates a package of multiple tables containing dynamic features from a given eventlog
 # evenTime must be of class Date, otherwise, modify accordingly:
-#' @export dfg_pack
+#' @export
 dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "sec", "min", "hour"), sequential = F,
                    event_funs = c('count', 'elapsed', 'tte', 'censored'), attr_funs = NULL, var_funs = NULL, horizon = NULL){
   cat('\n', "Verifications started ... ")

@@ -1,24 +1,24 @@
-Package: promer
+Package: rprom
 Type: Package
 Title: This package will be a complete toolbox for process mining, management, prediction, simulation and optimization
-Version: 1.9.7
-Date: 17 April 2021
+Version: 2.0.6
+Date: 05 August 2021
 Author: Nicolas Berta
 Maintainer: Nicolas Berta <nicolas.berta@gmail.com>
 Description: The package is still under construction. Documentation incomplete! Use at your own risk!
-License: MIT
+License: Artistic-2.0
 LazyData: TRUE
 RoxygenNote: 6.1.1
 Collate:
     'dfgtools.R'
     'elsyd.R'
     'prom.R'
+    'promtools.R'
+    'promvis.R'
+    'prosim.R'
     'tsvis.R'
     'tstools.R'
-    'prosim.R'
-    'promtools.R'
     'transys.R'
-    'promer.R'
-    'promvis.R'
+    'rprom.R'
     'survival.R'
     'survtools.R'

@@ -1,0 +1,40 @@
+---
+title: "rprom: The most comprehensive R package for Process Modelling"
+output:
+  html_document:
+    toc: false
+    toc_float: false
+---
+
+```{r setup, include=FALSE}
+source("utils.R")
+```
+
+<div id="main-banner" class="row">
+
+<div class="col-sm-8">
+
+
+## rprom: Process Modelling with R
+
+**rprom** is a R package for modelling any type of process model from event-based time-series dataset. 
+This package contains useful tools which provide functionalities for several types of process modelling.
+Some of these functionalities help you to:
+
+* Generate descriptive insights through various output tables, charts and visualisations
+
+* Monitor and visualize the process
+
+* Do a random walk analysis to get preogressive state probabilities
+
+* Obtain the impact matrix showing the impact of each event on the likelihood of every other event happening
+
+* Build a Markov-Chain model and run Monte-Carlo simulation
+
+* Generate wide table of dynamic case features
+
+* Build classifer/regression models to predict future events
+
+* Generate predictive monitoring analysis
+
+The [Getting Started](basics.html) page includes instructions to install the packages and its dependencies.

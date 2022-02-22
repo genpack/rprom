@@ -172,7 +172,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                            cols = unique(haz$featval) %>% as.list
 
                            haz %>% reshape2::dcast(age ~ featval, value.var = 'hazard') %>%
-                             viser::viserPlot(type = 'scatter', plotter = plotter, x = 'age', y = cols, shape = 'line')
+                             rvis::rvisPlot(type = 'scatter', plotter = plotter, x = 'age', y = cols, shape = 'line')
                          },
 
                          plot.survival = function(reasons = NULL, categoricals = NULL, plotter = 'plotly', gain = 100, t0 = 0){
@@ -184,7 +184,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                            haz[haz$age >= t0, ] %>% column2Rownames('age') %>%
                              apply(2, function(x) gain*x/x[1]) %>% as.data.frame %>% mutate(age = rownames(.) %>% as.integer) %>%
                              mutate(age = age - age[1]) %>%
-                             viser::viserPlot(type = 'scatter', plotter = plotter, x = 'age', y = cols, shape = 'line')
+                             rvis::rvisPlot(type = 'scatter', plotter = plotter, x = 'age', y = cols, shape = 'line')
                          },
 
                          plot.death = function(reasons = NULL, categoricals = NULL, plotter = 'plotly', gain = 100, t0 = 0){
@@ -197,7 +197,7 @@ SURVIVAL = setRefClass('SURVIVAL',
                            haz[haz$age >= t0, ] %>% column2Rownames('age') %>%
                              apply(2, function(x) gain*(x - x[1])/(1.0 - x[1])) %>% as.data.frame %>% mutate(age = rownames(.) %>% as.integer) %>%
                              mutate(age = age - age[1]) %>%
-                             viser::viserPlot(type = 'scatter', plotter = plotter, x = 'age', y = cols, shape = 'line')
+                             rvis::rvisPlot(type = 'scatter', plotter = plotter, x = 'age', y = cols, shape = 'line')
                          }
 
 

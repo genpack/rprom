@@ -69,7 +69,7 @@
 #                direction = direction)
 #     cat('\n', 'Started plotting the map ...')
 #     net = list(nodes = obj$nodes %>% as.data.frame %>% column2Rownames('from_id'), links = obj$links) %>%
-#       viserPlot(label = 'label', shape = 'shape', color = 'weight', tooltip = 'tooltip',
+#       rvisPlot(label = 'label', shape = 'shape', color = 'weight', tooltip = 'tooltip',
 #                source = 'from_id', target = 'to_id', linkLabel = 'weight', linkColor = list(edgeColor = 'weight'),
 #                linkWidth = list(edgeWidth = 'weight'),
 #                plotter = plotter, type = 'graph', config = cfg)
@@ -101,7 +101,7 @@
 #   #
 #   #
 #   #   net = list(nodes = obj$nodes %>% as.data.frame %>% column2Rownames('from_id'), links = obj$links) %>%
-#   #     viserPlot(label = 'label', shape = 'shape', color = 'weight', tooltip = 'tooltip', size = 50,
+#   #     rvisPlot(label = 'label', shape = 'shape', color = 'weight', tooltip = 'tooltip', size = 50,
 #   #              source = 'from_id', target = 'to_id', linkLabel = 'weight', linkColor = 'weight',
 #   #              config = list(point.size = 10, palette = list(color = c('white', node_colors), linkColor = c('white', edge_colors)), direction = direction),
 #   #              plotter = 'visNetwork', type = 'graph')
@@ -110,7 +110,7 @@
 #   # }
 #
 #   # tbls = obj %>% graphTables %>%
-#   #   viserPlot(label = 'label', shape = 'shape', color = 'color', labelColor = 'fontcolor', tooltip = 'tooltip',
+#   #   rvisPlot(label = 'label', shape = 'shape', color = 'color', labelColor = 'fontcolor', tooltip = 'tooltip',
 #   #            linkSource = 'from_id', linkTarget = 'to_id', linkWidth = 'penwidth',
 #   #            config = list(point.border.width = 1.5, label.font = 'Arial', node.style = "rounded,filled",
 #   #                          link.color = ifelse(perspective_edges == "performance", "red4", "dodgerblue4"),
@@ -129,7 +129,7 @@
 #     IDL = IDL[sequence(nbars), ]
 #     cfg = config %<==>% list(title = title, xAxis.label = unit, yAxis.label = 'Case ID',
 #                              yAxis.margin.left = 10*(IDL$caseID %>% nchar %>% max(na.rm = T)))
-#     IDL %>% viserPlot(
+#     IDL %>% rvisPlot(
 #       x = chif(horizontal, 'idle_time', 'caseID'),
 #       y = chif(horizontal, 'caseID', 'idle_time'),
 #       type = type, plotter = plotter, config = cfg, ...)
@@ -153,7 +153,7 @@
 #   cfg = config %<==>% list(title = title, xAxis.label = unit, yAxis.label = 'Skill (Task Type)',
 #                            yAxis.margin.left = 10*(SPT$taskType %>% nchar %>% max(na.rm = T)))
 #
-#   SPT %>% viserPlot(
+#   SPT %>% rvisPlot(
 #     x = chif(horizontal, measures[measure], 'taskType'),
 #     y = chif(horizontal, 'taskType', measures[measure]),
 #     type = type, plotter = plotter, config = cfg, ...)

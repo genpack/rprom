@@ -1,0 +1,84 @@
+---
+title: "Getting Started"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: true
+---
+
+## Installation:
+
+The package is currently available in Github only. You can install rprom directly from github:
+
+```{r install_rprom, eval=F}
+devtools::install_github("https://github.com/genpack/rprom.git")
+```
+
+Package ```rutils``` is also required for ```rprom``` as a dependency.
+This package is also available in github:
+
+```{r install_rutils, eval=F}
+devtools::install_github("https://github.com/genpack/rutils.git")
+```
+
+## Getting Started:
+
+The documentation of this package is yet under construction. 
+We are constantly working to prepare the full documentation, however, 
+here we show you how to build a simple model and generate some insights and visualisations:
+
+```{r build_ts, eval=T}
+library(rutils)
+library(rprom)
+
+tsobj = new('TRANSYS')
+class(tsobj)
+```
+
+Now, you have built an object of type ```TRANSYS``` which is a **Transition System**.
+To feed your **Transition System** with some data, you need a dataset in the event-log format. 
+You can get one from package [eventdataR](https://cran.r-project.org/web/packages/eventdataR/index.html):
+
+```{r install_eventdataR, eval=F}
+install.packages('eventdataR')
+```
+
+```{r get_data, eval=T}
+library(eventdataR)
+
+patients_df = patients %>% as.data.frame()
+
+patients_df %>% head %>% knitr::kable()
+```
+
+A Transition System is any entity which can take various stasuses at different times but can only be in one status at a time. 
+Depending on our definition of statuses, we can make changes to an eventlog so that our custom define status column is built. 
+These changes can include filtering some rows or modifying or combining one or multiple columns.
+In this example, we simply define completion of a task as a status, 
+so we remove all rows where ```registration_type``` is not ```complete```.
+
+Now feed the object with the eventlog you have and for this,
+you need to specify the critical column headers:
+
+```{r feed_data}
+
+tsobj$feed.eventlog(patients_df %>% filter(registration_type == 'complete'), 
+                    caseID_col = 'patient', 
+                    status_col = 'handling',
+                    startTime_col = 'time')
+```
+
+Now you have built your Transition System object and fed it with data. 
+
+### Adjacency matrix for a random walk analysis:
+```{r adjacency_matrix}
+
+tsobj$get.adjacency(measure = 'rate')
+
+```
+
+If everything has successfully run up to here, 
+you are ready to continue with more complex analysis.
+

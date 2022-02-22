@@ -47,6 +47,7 @@
 # 0.8.4     20 August 2019     Method feed.eventlog() modified: remove_sst bug rectified: now updates startTime
 # 0.8.5     09 September 2019  Method feed.eventlog() modified: adds new events to the existing history.
 # 0.8.6     09 September 2019  Generic function simulate.TRANSYS() transfered as method run.simulate().
+# 0.8.7     26 August 2021     Argument freqThreshold renamed to freqRateCut.
 
 # Good information for working with R functions:
 # http://adv-r.had.co.nz/Functions.html
@@ -72,13 +73,16 @@ empd = Sys.Date()[-1]
 timeUnitCoeff = c(hour = 3600, second = 1, minute = 60, day = 24*3600, week = 7*24*3600, year = 24*3600*365)
 
 #' @title TRANSYS: A reference class for modelling Transition Systems
-#' @exportClass TRANSYS
 #' @description Reference class containing some properties and methods required for analysing, modelling, simulating and visualising a Transition Sytem.
 #' A Transistopn System is the more general case of a Markov Chain model descibing a system which can change status over time.
 #'
-#' @field history data.frame holding history data of status transitions
-#' @field nodes data.frame holding nodes of a transition system network. Nodes are equivalent to statuses.
-#' @field links data.frame holding links of a transition system network. Links are equivalent to transitions.
+#' @field history \code{data.frame} holding history data of status transitions
+#' @field report \code{list} list of data.frames containing outputs of various query reports. These tables could be:
+#' 
+#' \code{nodes}: \code{data.frame} holding nodes of a transition system network. Nodes are equivalent to statuses.
+#' \code{links}: \code{data.frame} holding links of a transition system network. Links(edges) are equivalent to transitions.
+#'  
+#' @export TRANSYS
 TRANSYS = setRefClass('TRANSYS',
                       fields = list(
                         modelStart    = 'POSIXct',
@@ -105,7 +109,7 @@ TRANSYS = setRefClass('TRANSYS',
                         initialize = function(start = NULL, end = NULL, ...){
                           callSuper(...)
                           settings$include_case_measures <<- F
-                          settings$filter <<- list(complete = NULL, minLoops = NULL, maxLoops = NULL, IDs = NULL, startStatuses = NULL, endStatuses = NULL, freqThreshold = NULL)
+                          settings$filter <<- list(complete = NULL, minLoops = NULL, maxLoops = NULL, IDs = NULL, startStatuses = NULL, endStatuses = NULL, freqRateCut = NULL)
 
                           history <<- data.frame(caseID = character(), status = character(), nextStatus = character(), startTime = empt, endTime = empt, caseStart = logical(), caseEnd = logical(),
                                                  selected = logical(), startDate = empd, endDate = empd, creation = empt, duration = numeric(), eventAge = numeric(), path = character(),
@@ -224,7 +228,7 @@ TRANSYS = setRefClass('TRANSYS',
                           if(is.empty(modelStart)){modelStart <<- min(history$startTime)} else {modelStart <<- min(history$startTime, modelStart)}
                           if(is.empty(modelEnd)){modelEnd     <<- max(history$endTime)} else {modelEnd <<- max(history$endTime, modelEnd)}
 
-                          filter.case(complete = settings$filter$complete, minLoops = settings$filter$minLoops, maxLoops = settings$filter$maxLoops, IDs = settings$filter$IDs, startStatuses = settings$filter$startStatuses, endStatuses = settings$filter$endStatuses, freqThreshold = settings$filter$freqThreshold)
+                          filter.case(complete = settings$filter$complete, minLoops = settings$filter$minLoops, maxLoops = settings$filter$maxLoops, IDs = settings$filter$IDs, startStatuses = settings$filter$startStatuses, endStatuses = settings$filter$endStatuses, freqRateCut = settings$filter$freqRateCut)
                         },
 
                         # tables in cases are always full and do not depend on the filtering
@@ -517,6 +521,7 @@ TRANSYS = setRefClass('TRANSYS',
 
                         # valid.link.weights = c('totFreq', 'meanCaseFreq', 'medCaseFreq', 'sdCaseFreq', 'totalTime', ...)
                         # totalFreq:    Total transition frequency
+                        
                         # meanCaseFreq: average transition count per case
                         # medCaseFreq:  median case transition frequency (half of cases have transition frequency higher than this value)
                         # sdCaseFreq:   standard deviation of transition frequencies among cases
@@ -528,9 +533,43 @@ TRANSYS = setRefClass('TRANSYS',
                         # medTime :median transition time (half of transitions have transition time higher than this value)
                         # sdTime  :standard deviation of transition time among transitions(half of transitions have transition time higher than this value)
                         # meanCaseEntryFreq: how many times in average a case has entered this status
-                        # For nodes (statuses):
-                        # totExitFreq: Total count of transitions from this status to other statuses
                         get.nodes = function(full = F){
+                          "
+                          Returns the status profile which is a data.frame containing features associated with the statuses of the transition system.
+                          \\cr 
+                          Each status stablish a node in the process map graph from which you can build a Markov-Chain (MC) 
+                          model and use it to determine the steady state probabilities or run a memory-less process simulation.
+                          \\cr 
+                          If you run this method once, the output table will be accessible via reports$nodes.
+                          If the function is called for the second time, it returns the same table as before if you do not reset the object.
+                          \\cr 
+                          \\emph{Arguments:} 
+                          \\cr 
+                          * \\code{full (logical)}: If set to true, case filtering is ignored.
+                          \\cr 
+                          \\emph{Output:} 
+                          \\cr 
+                          \\code{(data.frame)}: Includes the following columns 
+                          (columns with keyword 'case' are generated only if settings$include_case_measures is TRUE):
+                          \\cr 
+                          * \\code{totExitFreq}: Over all cases, total count of transitions from the status to other statuses.
+                          \\cr 
+                          * \\code{totEntryFreq}: Over all cases, total count of transitions into the status from other statuses .
+                          \\cr 
+                          \\code{totalDuration}: Sum of duration(time) cases were in the status.
+                          \\cr 
+                          \\code{meanDuration}: Average duration(time) each case were in the status.
+                          \\cr 
+                          \\code{medDuration}: Median of duration(time) cases were in the status.
+                          \\cr 
+                          \\code{sdDuration}: Standard deviation of duration(time) cases were in the status.
+                          \\cr 
+                          \\code{nCaseEntry}: How many cases have at least once entered into the status.
+                          \\cr 
+                          \\code{nCaseExit}: How many cases have at least once exited from the status.
+                          \\cr 
+                          \\code{meanExitCaseFrequency}: indicates how many times in average, each case has exited from the status
+                          "
                           if(full){
                             if(!is.empty(tables$nodes)){return(tables$nodes)} else {H = history}
                           } else {
@@ -540,9 +579,13 @@ TRANSYS = setRefClass('TRANSYS',
                           cat('\n', 'Aggregating nodes ...')
 
                           if(settings$include_case_measures){
-                            A.node = H %>% dplyr::group_by(caseID, status) %>% dplyr::summarise(count = sum(selected, na.rm = T), duration = sum(duration, na.rm = T))
+                            # column "
+                            # column "nCaseExit" ? 
+                            # What percentage of cases have at least exited from this status?
+                            A.node = H %>% dplyr::group_by(caseID, status) %>% 
+                              dplyr::summarise(count = length(selected, na.rm = T), duration = sum(duration, na.rm = T))
                             B.node = A.node %>% dplyr::group_by(status) %>%
-                              dplyr::summarise(meanExitCaseFreq = mean(count, na.rm = T)   , medExitCaseFreq = median(count, na.rm = T)   , sdExitCaseFreq = sd(count, na.rm = T),
+                              dplyr::summarise(nCaseExit = sum(count > 0), meanExitCaseFreq = mean(count, na.rm = T), medExitCaseFreq = median(count, na.rm = T)   , sdExitCaseFreq = sd(count, na.rm = T),
                                                meanCaseDuration = mean(duration, na.rm = T), medCaseDuration = median(duration, na.rm = T), sdCaseDuration = sd(duration, na.rm = T))
                           }
 
@@ -793,7 +836,7 @@ TRANSYS = setRefClass('TRANSYS',
                           clear()
                         },
 
-                        filter.case = function(complete = NULL, minLoops = NULL, maxLoops = NULL, statusDomain = NULL, startStatuses = NULL, endStatuses = NULL, IDs = NULL, freqThreshold = NULL, reset = T){
+                        filter.case = function(complete = NULL, minLoops = NULL, maxLoops = NULL, statusDomain = NULL, startStatuses = NULL, endStatuses = NULL, IDs = NULL, freqRateCut = NULL, reset = T){
                           if(reset){filter.reset()}
                           
                           if(nrow(history) > 0){
@@ -846,18 +889,18 @@ TRANSYS = setRefClass('TRANSYS',
                             history$selected <<- history$caseID %in% report$caseIDs
                             
 
-                            if(!is.null(freqThreshold %>% verify(c('numeric','integer'), domain = c(0, 1), lengths = 1))){
+                            if(!is.null(freqRateCut %>% verify(c('numeric','integer'), domain = c(0, 1), lengths = 1))){
                               adjcy = get.adjacency()
                               if(!is.empty(adjcy)){
                                 adjcy %>% apply(1, vect.normalise) %>% t %>% as.data.frame %>% rownames2Column('status') %>%
-                                  reshape2::melt(id.vars = 'status', variable.name = "nextStatus") %>% filter(value < 1 - freqThreshold) -> paths
+                                  reshape2::melt(id.vars = 'status', variable.name = "nextStatus") %>% filter(value < 1 - freqRateCut) -> paths
 
                                 histsel  <- history[history$selected, ]
                                 histsel  <- histsel[histsel$path %in% (paths$status %++% '-' %++% paths$nextStatus),]
                                 outliers <- histsel$caseID %>% unique
                                 report$caseIDs <<- report$caseIDs %-% outliers
                                 history$selected <<- history$caseID %in% report$caseIDs
-                                settings$filter$freqThreshold <<- freqThreshold
+                                settings$filter$freqRateCut <<- freqRateCut
                               }
                             }
                             

@@ -495,7 +495,7 @@ PROCESS = setRefClass('PROCESS',
 
                           # todo: make it faster by feeding summary to the plot rather than the whole dataset (add additional value to make mean value consistent if plot shows mean as well)
                           tasklist %>% filter(selected & (activity %in% subset)) %>%
-                            viserPlot(y = chif(horizontal, 'activity', 'procTime'), x = chif(horizontal, 'procTime', 'activity'), type = 'box', plotter = plotter)
+                            rvis::rvisPlot(y = chif(horizontal, 'activity', 'procTime'), x = chif(horizontal, 'procTime', 'activity'), type = 'box', plotter = plotter)
                         },
 
                         plot.agent.summary.procTime = function(plotter = 'plotly', time_unit = c('second', 'minute', 'hour', 'day', 'week', 'year'), subset = NULL, n_trim = 12, horizontal = T){
@@ -512,7 +512,7 @@ PROCESS = setRefClass('PROCESS',
                           time_unit = match.arg(time_unit)
                           k = 1.0/timeUnitCoeff[time_unit]
                           agentHistory %>% filter(selected & (agent %in% subset) & ntask > 0) %>%
-                            viserPlot(y = chif(horizontal, 'agent', 'duration'), x = chif(horizontal, 'duration', 'agent'), type = 'box', plotter = plotter)
+                            rvis::rvisPlot(y = chif(horizontal, 'agent', 'duration'), x = chif(horizontal, 'duration', 'agent'), type = 'box', plotter = plotter)
                         }
                       )
 )

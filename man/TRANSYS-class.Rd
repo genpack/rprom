@@ -12,11 +12,12 @@ A Transistopn System is the more general case of a Markov Chain model descibing 
 \section{Fields}{
 
 \describe{
-\item{\code{history}}{data.frame holding history data of status transitions}
+\item{\code{history}}{\code{data.frame} holding history data of status transitions}
 
-\item{\code{nodes}}{data.frame holding nodes of a transition system network. Nodes are equivalent to statuses.}
+\item{\code{report}}{\code{list} list of data.frames containing outputs of various query reports. These tables could be:
 
-\item{\code{links}}{data.frame holding links of a transition system network. Links are equivalent to transitions.}
+\code{nodes}: \code{data.frame} holding nodes of a transition system network. Nodes are equivalent to statuses.
+\code{links}: \code{data.frame} holding links of a transition system network. Links(edges) are equivalent to transitions.}
 }}
 
 \section{Methods}{
@@ -34,6 +35,41 @@ A Transistopn System is the more general case of a Markov Chain model descibing 
 \item{\code{get.case.status.time()}}{Returns entry time of each case to each status in a matrix}
 
 \item{\code{get.longest_path()}}{Returns the longest sequence observed}
+
+\item{\code{get.nodes(full = F)}}{Returns the status profile which is a data.frame containing features associated with the statuses of the transition system.
+\cr 
+Each status stablish a node in the process map graph from which you can build a Markov-Chain (MC) 
+model and use it to determine the steady state probabilities or run a memory-less process simulation.
+\cr 
+If you run this method once, the output table will be accessible via reports$nodes.
+If the function is called for the second time, it returns the same table as before if you do not reset the object.
+\cr 
+\emph{Arguments:} 
+\cr 
+* \code{full (logical)}: If set to true, case filtering is ignored.
+\cr 
+\emph{Output:} 
+\cr 
+\code{(data.frame)}: Includes the following columns 
+(columns with keyword 'case' are generated only if settings$include_case_measures is TRUE):
+\cr 
+* \code{totExitFreq}: Over all cases, total count of transitions from the status to other statuses.
+\cr 
+* \code{totEntryFreq}: Over all cases, total count of transitions into the status from other statuses .
+\cr 
+\code{totalDuration}: Sum of duration(time) cases were in the status.
+\cr 
+\code{meanDuration}: Average duration(time) each case were in the status.
+\cr 
+\code{medDuration}: Median of duration(time) cases were in the status.
+\cr 
+\code{sdDuration}: Standard deviation of duration(time) cases were in the status.
+\cr 
+\code{nCaseEntry}: How many cases have at least once entered into the status.
+\cr 
+\code{nCaseExit}: How many cases have at least once exited from the status.
+\cr 
+\code{meanExitCaseFrequency}: indicates how many times in average, each case has exited from the status}
 
 \item{\code{get.status.case.time()}}{Returns entry time to each status for each case in a matrix (transpose of 'case.status.time')}
 }}

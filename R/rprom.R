@@ -1,9 +1,9 @@
-#' NIBE package for comprehensive process modelling in R
+#' A package for comprehensive process modelling in R
 #'
 #' This package has whatever you need to implement a process modelling.
 #'
 #' @docType package
-#' @name promer
+#' @name rprom
 #' @include transys.R
 #' @include prom.R
 #' @include promtools.R
@@ -12,9 +12,9 @@
 #' @include tsvis.R
 #' @include dfgtools.R
 
-# Current Version: 1.9.7
+# Current Version: 2.0.4
 # Issue Date: 08 November 2016
-# Last Issue: 17 April 2021
+# Last Issue: 03 August 2021
 
 # Version     Date                 Action
 # ----------------------------------
@@ -62,5 +62,7 @@
 # 1.9.2       11 March 2021        dfgtools.R added
 # 1.9.3       16 April 2021        minor change in dfgtools.R function dfg_pack() 
 # 1.9.7       17 April 2021        function moving_aggregator() added: function dfg.historic() updated. 
+# 2.0.5       03 August 2021       Revisit to update. 
+# 2.0.6       05 August 2021       method get.nodes() in transys.R modified: column nCaseExit added.
 NULL
 #> NULL
