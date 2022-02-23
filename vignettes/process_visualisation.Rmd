@@ -158,7 +158,7 @@ Usually, a value close to 1.0 is chosen. For example, if you set it to 0.9,
 10% of cases with the least frequent traces will be eliminated:
 
 ```{r pmap_filter_frc}
-tsobj$filter.case(freqThreshold = 0.9)
+tsobj$filter.case(freqRateCut = 0.9)
 
 tsobj$plot.process.map()
 ```
@@ -175,7 +175,7 @@ For complete information about case filtering refer to the package API reference
 Sankey chart is another type of visualisation which can show you the process by 
 focusing more on the process flows.
 
-```{r pmap_filter_frc}
+```{r plot_process_sankey}
 tsobj %>% plot_process_sankey()
 ```
 

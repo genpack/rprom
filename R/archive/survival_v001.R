@@ -1,8 +1,8 @@
 # Header
 # Filename:       survival.R
 # Description:    Contains utility functions for survival modelling.
-# Author:         Nicolas Berta
-# Email :         nicolas.berta@gmail.com
+# Author:         Nima Ramezani
+# Email :         nima.ramezani@gmail.com
 # Start Date:     14 March 2019
 # Last Revision:  14 March 2019
 # Version:        0.0.1

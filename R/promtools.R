@@ -1,8 +1,8 @@
 # Header
 # Filename:       promtools.R
 # Description:    Contains utility functions for process modelling.
-# Author:         Nicolas Berta
-# Email :         nicolas.berta@gmail.com
+# Author:         Nima Ramezani
+# Email :         nima.ramezani@gmail.com
 # Start Date:     06 July 2018
 # Last Revision:  31 July 2018
 # Version:        0.1.4

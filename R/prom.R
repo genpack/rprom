@@ -1,8 +1,8 @@
 # Header
 # Filename:      prom.R
 # Description:   This module provides functions for process mining and process analytics.
-# Author:        Nicolas Berta
-# Email :        nicolas.berta@gmail.com
+# Author:        Nima Ramezani
+# Email :        nima.ramezani@gmail.com
 # Start Date:    02 May 2018
 # Last Revision: 01 August 2018
 # Version:       0.5.1

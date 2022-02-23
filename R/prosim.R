@@ -3,8 +3,8 @@
 # Header
 # Filename:      prosim.R
 # Description:   This module provides functions for simulating the process including queue simulation and transition simulations
-# Author:        Nicolas Berta
-# Email :        nicolas.berta@gmail.com
+# Author:        Nima Ramezani
+# Email :        nima.ramezani@gmail.com
 # Start Date:    09 March 2018
 # Last Revision: 21 June 2018
 # Version:       0.0.5

@@ -3,8 +3,8 @@
 # Header
 # Filename:       tsvis.R
 # Description:    Visualisation functions for transys objects
-# Author:         Nicolas Berta
-# Email :         nicolas.berta@gmail.com
+# Author:         Nima Ramezani
+# Email :         nima.ramezani@gmail.com
 # Start Date:     12 October 2018
 # Last Revision:  27 June 2019
 # Version:        0.1.5

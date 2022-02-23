@@ -4,8 +4,8 @@
 # Description:   This module introduces a reference class named as TRANSYS which only keeps the status changes.
 #                Each case can have only one status at a time.
 #                This model can also be used for processes which do not have concurrent activities.
-# Author:        Nicolas Berta
-# Email :        nicolas.berta@gmail.com
+# Author:        Nima Ramezani
+# Email :        nima.ramezani@gmail.com
 # Start Date:    08 November 2016
 # Last Revision: 09 September 2019
 # Version:       0.8.6

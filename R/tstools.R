@@ -3,8 +3,8 @@
 # Header
 # Filename:       tstools.R
 # Description:    Contains utility functions for process modelling.
-# Author:         Nicolas Berta
-# Email :         nicolas.berta@gmail.com
+# Author:         Nima Ramezani
+# Email :         nima.ramezani@gmail.com
 # Start Date:     06 July 2018
 # Last Revision:  09 September 2019
 # Version:        0.0.8
