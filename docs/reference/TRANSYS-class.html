@@ -18,7 +18,7 @@ A Transistopn System is the more general case of a Markov Chain model descibing 
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">rprom</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.0.6</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.1.6</span>
       </span>
     </div>
 
@@ -33,6 +33,9 @@ A Transistopn System is the more general case of a Markov Chain model descibing 
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu"><li>
+      <a href="../articles/monte_carlo_simulation.html">Monte-Carlo Simulation</a>
+    </li>
+    <li>
       <a href="../articles/process_visualisation.html">Process Visualisation</a>
     </li>
   </ul></li>
@@ -75,10 +78,20 @@ A Transistopn System is the more general case of a Markov Chain model descibing 
     <h2>Methods</h2>
     
 
-<dl><dt><code>feed.eventlog(dataset, caseID_col = "caseID", status_col = "status",
-  startTime_col = "startTime", caseStartFlag_col = NULL,
-  caseEndFlag_col = NULL, caseStartTags = NULL, caseEndTags = NULL,
-  sort_startTime = T, add_start = T, remove_sst = F, extra_col = NULL)</code></dt>
+<dl><dt><code>feed.eventlog(
+  dataset,
+  caseID_col = "caseID",
+  status_col = "status",
+  startTime_col = "startTime",
+  caseStartFlag_col = NULL,
+  caseEndFlag_col = NULL,
+  caseStartTags = NULL,
+  caseEndTags = NULL,
+  sort_startTime = T,
+  add_start = T,
+  remove_sst = F,
+  extra_col = NULL
+)</code></dt>
 <dd><p>Feeds an eventlog as a data.frame or tibble to train the transition system model.</p></dd>
 
 
@@ -94,32 +107,49 @@ A Transistopn System is the more general case of a Markov Chain model descibing 
 <dd><p>Returns entry time of each case to each status in a matrix</p></dd>
 
 
+<dt><code>get.links(full = F)</code></dt>
+<dd><p>Returns the transition profile which is a data frame containing features associated with the transitions of cases from one status to other.
+                          <br> 
+                          Each transition stablish a link in the process map graph from which you can build a Markov-Chain (MC) 
+                          model and use it to determine the steady state probabilities or run a memory-less process simulation.
+                          <br> 
+                          If you run this method once, the output table will be accessible via <code>reports$links</code>.
+                          If the function is called for the second time, it returns the same table as before if you do not reset the object.
+                          <br><br><em>Arguments:</em> <br><br>
+                          * <code>full (logical)</code>: If set to <code>TRUE</code>, case filtering is ignored and all cases will be considered in computing the statistics.
+                          <br><br><em>Output:</em> 
+                          <br><br><code>(data.frame)</code>: Includes the following columns
+                          (columns with keyword <code>case</code> are generated only if <code>settings$include_case_measures</code> is <code>TRUE</code>):
+                          <br><br></p>
+<p><code>meanCaseFreq</code>: average transition count per case <br><code>medCaseFreq</code>:  median case transition frequency 
+                          (half of cases have transition frequency higher than this value) <br><code>sdCaseFreq</code>: standard deviation of transition frequencies among cases <br><code>totalTime</code>: Total transition time <br><code>meanCaseTime</code>: average transition time per case  <br><code>medCaseTime</code>: median case transition time (half of cases have transition time higher than this value)  <br><code>sdCaseTime</code>: standard deviation of transition time among cases  <br><code>meanTime</code>: average: transition time per transition  <br><code>medTime</code>: median transition time (half of transitions have transition time higher than this value)  <br><code>sdTime</code>: standard deviation of transition time among transitions(half of transitions have transition time higher than this value)  <br><code>meanCaseEntryFreq</code>: how many times in average a case has entered this status  <br></p>
+<p></p></dd>
+
+
 <dt><code>get.longest_path()</code></dt>
 <dd><p>Returns the longest sequence observed</p></dd>
 
 
 <dt><code>get.nodes(full = F)</code></dt>
-<dd><p>Returns the status profile which is a data.frame containing features associated with the statuses of the transition system.
+<dd><p>Returns the status profile which is a data frame containing features associated with the statuses of the transition system.
 <br> 
 Each status stablish a node in the process map graph from which you can build a Markov-Chain (MC) 
 model and use it to determine the steady state probabilities or run a memory-less process simulation.
 <br> 
 If you run this method once, the output table will be accessible via reports$nodes.
 If the function is called for the second time, it returns the same table as before if you do not reset the object.
-<br><em>Arguments:</em> 
-<br> 
-* <code>full (logical)</code>: If set to true, case filtering is ignored.
-<br><em>Output:</em> 
-<br><code>(data.frame)</code>: Includes the following columns 
-(columns with keyword 'case' are generated only if settings$include_case_measures is TRUE):
-<br> 
-* <code>totExitFreq</code>: Over all cases, total count of transitions from the status to other statuses.
-<br> 
-* <code>totEntryFreq</code>: Over all cases, total count of transitions into the status from other statuses .
-<br><code>totalDuration</code>: Sum of duration(time) cases were in the status.
-<br><code>meanDuration</code>: Average duration(time) each case were in the status.
-<br><code>medDuration</code>: Median of duration(time) cases were in the status.
-<br><code>sdDuration</code>: Standard deviation of duration(time) cases were in the status.
+<br><br><em>Arguments:</em> 
+<br><br>
+* <code>full (logical)</code>: If set to <code>TRUE</code>, case filtering is ignored and all cases will be considered in computing the statistics.
+<br><br><em>Output:</em> 
+<br><br><code>(data.frame)</code>: Includes the following columns
+(columns with keyword <code>case</code> are generated only if <code>settings$include_case_measures</code> is <code>TRUE</code>):
+<br><br><code>totExitFreq</code>: Over all cases, total count of transitions from the status to other statuses.
+<br><code>totEntryFreq</code>: Over all cases, total count of transitions into the status from other statuses .
+<br><code>totalDuration</code>: Sum of duration(time) that cases spent in the status.
+<br><code>meanDuration</code>: Average duration(time) that each case spent in the status.
+<br><code>medDuration</code>: Median of duration(time) that cases spent in the status.
+<br><code>sdDuration</code>: Standard deviation of duration(time) that cases were in the status.
 <br><code>nCaseEntry</code>: How many cases have at least once entered into the status.
 <br><code>nCaseExit</code>: How many cases have at least once exited from the status.
 <br><code>meanExitCaseFrequency</code>: indicates how many times in average, each case has exited from the status</p></dd>
@@ -127,6 +157,43 @@ If the function is called for the second time, it returns the same table as befo
 
 <dt><code>get.status.case.time()</code></dt>
 <dd><p>Returns entry time to each status for each case in a matrix (transpose of 'case.status.time')</p></dd>
+
+
+<dt><code>get.transition_matrix(
+  measure = c("rate", "freq", "time"),
+  aggregator = c("sum", "mean", "median", "sd"),
+  remove_ends = F,
+  full = F
+)</code></dt>
+<dd><p>Returns the square <a href="https://en.wikipedia.org/wiki/Adjacency_matrix" class="external-link">Adjecancy Matrix</a>
+associated with the transition system. It returns the same information that method get.links() provides but in a square matrix. <br><br></p>
+<p><em>Arguments:</em> <br><br></p>
+<p><code>measure (character)</code>: one of the three options: <code>'rate'</code>, <code>'freq'</code> or <code>'time'</code>.
+The default is <code>'rate'</code>. Any other value will raise a value error. <br>
+- <code>'rate'</code>: the returned matrix contains rates of transitions from one status to itself or another status as 
+percentages of total cases in the origin status. <br> 
+For example, if <em>A</em> and <em>B</em> are two statuses in the transition system, 
+the value of cell in row A and column B shows what fraction of cases transitioned from status A to B. <br>
+- <code>'freq'</code>: the returned matrix contains raw frequencies of case transitions. <br>
+- <code>'time'</code>: the returned matrix contains aggregated durations of case transitions. <br><br></p>
+<p><code>aggregator (character)</code>: Only used when <code>measure</code> is set to <code>'time'</code>.
+Can be one of these options <code>'sum', 'mean', 'median', 'sd'</code>
+This specifies aggregator to aggregate transition times (durations). 
+For example if <code>measure = 'time'</code> and  <code>aggregator = 'mean'</code>, 
+the value of cell in row A and column B shows the average transition time from status A to B 
+(average time cases spent in status A before migrating to status B) <br><br></p>
+<p><code>remove_ends (boolean)</code>: If set to <code>TRUE</code>, then the rows and columns 
+associated with the START, END, ENTER and EXIT statuses will be eliminated from the adjacency matrix.</p></dd>
+
+
+<dt><code>random_walk(starting_status = "START", num_steps = 1)</code></dt>
+<dd><p>Runs a random walk analysis starting from a given status and returns a dataframe
+                          containing probability distributions over statuses at each step</p>                          
+<p><em>Arguments:</em> <br><br></p>                          
+<p><code>starting_status (character)</code>: must be one of statuses defined in the transition system.
+                          The default is <code>'START'</code>. <br></p>
+<p><code>num_steps (integer)</code>: Number of steps in the random walk.</p>
+<p></p></dd>
 
 
 </dl></div>

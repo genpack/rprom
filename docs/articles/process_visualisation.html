@@ -33,7 +33,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">rprom</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.0.6</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.1.6</span>
       </span>
     </div>
 
@@ -50,6 +50,9 @@
   </a>
   <ul class="dropdown-menu" role="menu">
 <li>
+      <a href="../articles/monte_carlo_simulation.html">Monte-Carlo Simulation</a>
+    </li>
+    <li>
       <a href="../articles/process_visualisation.html">Process Visualisation</a>
     </li>
   </ul>
@@ -91,9 +94,9 @@
 <code class="sourceCode R"><span class="va">tsobj</span> <span class="op">=</span> <span class="fu">new</span><span class="op">(</span><span class="st">'TRANSYS'</span><span class="op">)</span></code></pre></div>
 <p>Now, we pick an eventlog from <code>eventdataR</code> package and feed our object with the data:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="va">traffic_fines_df</span> <span class="op">=</span> <span class="fu">eventdataR</span><span class="fu">::</span><span class="va"><a href="https://rdrr.io/pkg/eventdataR/man/traffic_fines.html" class="external-link">traffic_fines</a></span> <span class="op">%&gt;%</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="op">)</span>
+<code class="sourceCode R"><span class="va">traffic_fines_df</span> <span class="op">=</span> <span class="fu">eventdataR</span><span class="fu">::</span><span class="va"><a href="https://rdrr.io/pkg/eventdataR/man/traffic_fines.html" class="external-link">traffic_fines</a></span> <span class="op"><a href="https://rdrr.io/pkg/magrittr/man/pipe.html" class="external-link">%&gt;%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="op">)</span>
 
-<span class="va">traffic_fines_df</span> <span class="op">%&gt;%</span> <span class="va">head</span> <span class="op">%&gt;%</span> <span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="op">)</span></code></pre></div>
+<span class="va">traffic_fines_df</span> <span class="op"><a href="https://rdrr.io/pkg/magrittr/man/pipe.html" class="external-link">%&gt;%</a></span> <span class="va">head</span> <span class="op"><a href="https://rdrr.io/pkg/magrittr/man/pipe.html" class="external-link">%&gt;%</a></span> <span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="op">)</span></code></pre></div>
 <table class="table">
 <colgroup>
 <col width="3%">
@@ -260,7 +263,7 @@
 </table>
 <p>We can define completion of an activity as status for our cases, so we filter for <code>lifecycle</code> to be <code>complete</code>. You also need to specify critical column headers for the data feeder:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="va">tsobj</span><span class="op">$</span><span class="fu">feed.eventlog</span><span class="op">(</span><span class="va">traffic_fines_df</span> <span class="op">%&gt;%</span> <span class="fu"><a href="https://rdrr.io/r/stats/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">lifecycle</span> <span class="op">==</span> <span class="st">'complete'</span><span class="op">)</span>, 
+<code class="sourceCode R"><span class="va">tsobj</span><span class="op">$</span><span class="fu">feed.eventlog</span><span class="op">(</span><span class="va">traffic_fines_df</span> <span class="op"><a href="https://rdrr.io/pkg/magrittr/man/pipe.html" class="external-link">%&gt;%</a></span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">lifecycle</span> <span class="op">==</span> <span class="st">'complete'</span><span class="op">)</span>, 
                     caseID_col <span class="op">=</span> <span class="st">'case_id'</span>, 
                     status_col <span class="op">=</span> <span class="st">'activity'</span>,
                     startTime_col <span class="op">=</span> <span class="st">'timestamp'</span><span class="op">)</span></code></pre></div>
@@ -325,7 +328,7 @@
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="va">tsobj</span><span class="op">$</span><span class="fu">filter.reset</span><span class="op">(</span><span class="op">)</span>
 
-<span class="va">tsobj</span><span class="op">$</span><span class="fu">plot.process.map</span><span class="op">(</span>plotter <span class="op">=</span> <span class="st">'visNetwork'</span><span class="op">)</span> <span class="op">%&gt;%</span> 
+<span class="va">tsobj</span><span class="op">$</span><span class="fu">plot.process.map</span><span class="op">(</span>plotter <span class="op">=</span> <span class="st">'visNetwork'</span><span class="op">)</span> <span class="op"><a href="https://rdrr.io/pkg/magrittr/man/pipe.html" class="external-link">%&gt;%</a></span> 
   <span class="fu">visNetwork</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/visNetwork/man/visEdges.html" class="external-link">visEdges</a></span><span class="op">(</span>arrows <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>to <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>enabled <span class="op">=</span> <span class="cn">TRUE</span>, scaleFactor <span class="op">=</span> <span class="fl">1.5</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></code></pre></div>
 <p>For complete instructions refer to the documentation of <code>visNetwork</code> package.</p>
 </div>
@@ -336,10 +339,9 @@
 <p>The most common filtering is to filter out cases which have uncommon transitions. These are what we call <em>noisy cases</em>. These cases follow traces different from the most frequent traces of the process and thus deviate from the main process.</p>
 <p>Case filtering can be done via method <code>filter.case</code>. To filter out noisy cases, you can set argument <code>FreqRateCut</code> to a value between 0 and 1. Usually, a value close to 1.0 is chosen. For example, if you set it to 0.9, 10% of cases with the least frequent traces will be eliminated:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="va">tsobj</span><span class="op">$</span><span class="fu">filter.case</span><span class="op">(</span>freqRateCut <span class="op">=</span> <span class="fl">0.9</span><span class="op">)</span></code></pre></div>
-<pre><code><span class="co">## [1] "vect.normalise Error: Sum of elements of the given matrix is zero. Given argument returned"</span></code></pre>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="va">tsobj</span><span class="op">$</span><span class="fu">plot.process.map</span><span class="op">(</span><span class="op">)</span></code></pre></div>
+<code class="sourceCode R"><span class="va">tsobj</span><span class="op">$</span><span class="fu">filter.case</span><span class="op">(</span>freqRateCut <span class="op">=</span> <span class="fl">0.9</span><span class="op">)</span>
+
+<span class="va">tsobj</span><span class="op">$</span><span class="fu">plot.process.map</span><span class="op">(</span><span class="op">)</span></code></pre></div>
 <pre><code><span class="co">## </span>
 <span class="co">##  Aggregating nodes ...Done! </span>
 <span class="co">## </span>
@@ -352,8 +354,8 @@
 <h2 id="process-sankey">Process Sankey<a class="anchor" aria-label="anchor" href="#process-sankey"></a>
 </h2>
 <p>Sankey chart is another type of visualisation which can show you the process by focusing more on the process flows.</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="va">tsobj</span> <span class="op">%&gt;%</span> <span class="fu">plot_process_sankey</span><span class="op">(</span><span class="op">)</span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span class="va">tsobj</span> <span class="op"><a href="https://rdrr.io/pkg/magrittr/man/pipe.html" class="external-link">%&gt;%</a></span> <span class="fu">plot_process_sankey</span><span class="op">(</span><span class="op">)</span></code></pre></div>
 <pre><code><span class="co">## Loading required package: networkD3</span></code></pre>
 <div id="htmlwidget-3ff3f7804f2c6952e3d6" style="width:700px;height:432.632880098888px;" class="sankeyNetwork html-widget"></div>
 <script type="application/json" data-for="htmlwidget-3ff3f7804f2c6952e3d6">{"x":{"links":{"source":[0,0,1,1,3,4,5,5,6,7],"target":[4,6,4,5,0,2,2,3,2,1],"value":[758,3273,3428,5921,4031,4186,1890,4031,3273,9349]},"nodes":{"name":["Add penalty","Create Fine","END","Insert Fine Notification","Payment","Send Fine","Send for Credit Collection","START"],"group":["Add penalty","Create Fine","END","Insert Fine Notification","Payment","Send Fine","Send for Credit Collection","START"]},"options":{"NodeID":"label","NodeGroup":"label","LinkGroup":null,"colourScale":"d3.scaleOrdinal(d3.schemeCategory20);","fontSize":10,"fontFamily":null,"nodeWidth":25,"nodePadding":10,"units":"","margin":{"top":null,"right":null,"bottom":null,"left":null},"iterations":32,"sinksRight":true}},"evals":[],"jsHooks":[]}</script>
@@ -363,13 +365,13 @@
 </h2>
 <p>Another type of visualisation ideal for showing a process is an interactive Sankey-Tree.</p>
 <p>To generate this visualisation, you will need to install packages <code>sankeytreeR</code> and <code>treemap</code>. package <code>treemap</code> can be installed from cran and <code>sankeytree</code> needs to be installed from github:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="kw">if</span><span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="va">treemap</span><span class="op">)</span><span class="op">)</span><span class="op">{</span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">'treemap'</span><span class="op">)</span><span class="op">}</span></code></pre></div>
 <pre><code><span class="co">## Loading required package: treemap</span></code></pre>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="kw">if</span><span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="va"><a href="https://github.com/timelyportfolio/d3r" class="external-link">d3r</a></span><span class="op">)</span><span class="op">)</span><span class="op">{</span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">'d3r'</span><span class="op">)</span><span class="op">}</span></code></pre></div>
 <pre><code><span class="co">## Loading required package: d3r</span></code></pre>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="kw">if</span><span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="va"><a href="https://github.com/timelyportfolio/sankeytree" class="external-link">sankeytreeR</a></span><span class="op">)</span><span class="op">)</span><span class="op">{</span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">'https://github.com/timelyportfolio/sankeytree.git'</span><span class="op">)</span><span class="op">}</span></code></pre></div>
 <pre><code><span class="co">## Loading required package: sankeytreeR</span></code></pre>
 <p>It’s good to filter out the most 1% uncommon traces tsobj %&gt;% plot_process_tree()</p>

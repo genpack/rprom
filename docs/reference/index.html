@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">rprom</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.0.6</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.1.6</span>
       </span>
     </div>
 
@@ -32,6 +32,9 @@
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu"><li>
+      <a href="../articles/monte_carlo_simulation.html">Monte-Carlo Simulation</a>
+    </li>
+    <li>
       <a href="../articles/process_visualisation.html">Process Visualisation</a>
     </li>
   </ul></li>
@@ -60,9 +63,35 @@
         </td>
         <td><p>TRANSYS: A reference class for modelling Transition Systems</p></td>
       </tr><tr><td>
+          <p><code><a href="markovchain_transition_classifier.html">markovchain_transition_classifier()</a></code> </p>
+        </td>
+        <td><p>Generates predicted transition targets based on markov chain random walk simulation. 
+This function is a simple transition probability model based on memory-less markov-chain model.
+It randomly picks destination for each given transition respecting 
+the probability distribution of each transition target.
+Transition probability distribution are extracted from given argument <code>histobj</code>.
+This is the default target generator engine for the transition system monte-carlo simulation.
+The <code>TranSys</code> simulator engine calls this function multiple times during the sumulation.</p></td>
+      </tr><tr><td>
+          <p><code><a href="markovchain_transition_time_estimator.html">markovchain_transition_time_estimator()</a></code> </p>
+        </td>
+        <td><p>Generates predicted transition times based on marcovchanin random walk simulation. 
+It generates random transition time (status durations) based on the average observed transition times
+(given by argument <code>histobj</code>). 
+MarkovChain transition time generator assumes transition times have normal distribution.
+This is the default time generator engine for the transition system monte-carlo simulation.</p></td>
+      </tr><tr><td>
           <p><code><a href="plot_process_tree.html">plot_process_tree()</a></code> </p>
         </td>
         <td><p>plots process tree for the transition system</p></td>
+      </tr><tr><td>
+          <p><code><a href="plot_transition_time_histogram.html">plot_transition_time_histogram()</a></code> </p>
+        </td>
+        <td><p>Shows the distribution of transition times (durations) in a histogram plot.</p></td>
+      </tr><tr><td>
+          <p><code><a href="rprom-package.html">rprom-package</a></code> </p>
+        </td>
+        <td><p>This package will be a complete toolbox for process mining, management, prediction, simulation and optimization</p></td>
       </tr><tr><td>
           <p><code><a href="rprom.html">rprom</a></code> </p>
         </td>

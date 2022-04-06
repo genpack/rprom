@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">rprom</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.0.6</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.1.6</span>
       </span>
     </div>
 
@@ -32,6 +32,9 @@
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu"><li>
+      <a href="../articles/monte_carlo_simulation.html">Monte-Carlo Simulation</a>
+    </li>
+    <li>
       <a href="../articles/process_visualisation.html">Process Visualisation</a>
     </li>
   </ul></li>
@@ -102,18 +105,33 @@ caseStart_tag, caseEnd_tag, age_varname, deathReason_varname, cp_attributes, nor
 <dd><p>Takes you to a given time</p></dd>
 
 
-<dt><code>plot.death(reasons = NULL, categoricals = NULL, plotter = "plotly",
-  gain = 100, t0 = 0)</code></dt>
+<dt><code>plot.death(
+  reasons = NULL,
+  categoricals = NULL,
+  plotter = "plotly",
+  gain = 100,
+  t0 = 0
+)</code></dt>
 <dd><p>Plots Kaplan-Meier death chart</p></dd>
 
 
-<dt><code>plot.hazard(reasons = NULL, categoricals = NULL, plotter = "plotly",
-  smooth_k = 6, gain = 100)</code></dt>
+<dt><code>plot.hazard(
+  reasons = NULL,
+  categoricals = NULL,
+  plotter = "plotly",
+  smooth_k = 6,
+  gain = 100
+)</code></dt>
 <dd><p>Plots Kaplan-Meier hazard chart</p></dd>
 
 
-<dt><code>plot.survival(reasons = NULL, categoricals = NULL, plotter = "plotly",
-  gain = 100, t0 = 0)</code></dt>
+<dt><code>plot.survival(
+  reasons = NULL,
+  categoricals = NULL,
+  plotter = "plotly",
+  gain = 100,
+  t0 = 0
+)</code></dt>
 <dd><p>Plots Kaplan-Meier survival chart</p></dd>
 
 

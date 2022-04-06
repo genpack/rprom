@@ -1,36 +1,51 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>/404.html</loc>
+    <loc>https://genpack.github.io/rprom/404.html</loc>
   </url>
   <url>
-    <loc>/Readme.html</loc>
+    <loc>https://genpack.github.io/rprom/Readme.html</loc>
   </url>
   <url>
-    <loc>/articles/index.html</loc>
+    <loc>https://genpack.github.io/rprom/articles/index.html</loc>
   </url>
   <url>
-    <loc>/articles/process_visualisation.html</loc>
+    <loc>https://genpack.github.io/rprom/articles/monte_carlo_simulation.html</loc>
   </url>
   <url>
-    <loc>/authors.html</loc>
+    <loc>https://genpack.github.io/rprom/articles/process_visualisation.html</loc>
   </url>
   <url>
-    <loc>/index.html</loc>
+    <loc>https://genpack.github.io/rprom/authors.html</loc>
   </url>
   <url>
-    <loc>/reference/SURVIVAL-class.html</loc>
+    <loc>https://genpack.github.io/rprom/index.html</loc>
   </url>
   <url>
-    <loc>/reference/TRANSYS-class.html</loc>
+    <loc>https://genpack.github.io/rprom/reference/SURVIVAL-class.html</loc>
   </url>
   <url>
-    <loc>/reference/index.html</loc>
+    <loc>https://genpack.github.io/rprom/reference/TRANSYS-class.html</loc>
   </url>
   <url>
-    <loc>/reference/plot_process_tree.html</loc>
+    <loc>https://genpack.github.io/rprom/reference/index.html</loc>
   </url>
   <url>
-    <loc>/reference/rprom.html</loc>
+    <loc>https://genpack.github.io/rprom/reference/markovchain_transition_classifier.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/reference/markovchain_transition_time_estimator.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/reference/plot_process_tree.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/reference/plot_transition_time_histogram.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/reference/rprom-package.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/reference/rprom.html</loc>
   </url>
 </urlset>
