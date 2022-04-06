@@ -4,7 +4,8 @@ pkgdown_sha: ~
 articles:
   monte_carlo_simulation: monte_carlo_simulation.html
   process_visualisation: process_visualisation.html
-last_built: 2022-04-06T02:22Z
+  random_walk: random_walk.html
+last_built: 2022-04-06T05:35Z
 urls:
   reference: https://genpack.github.io/rprom/reference
   article: https://genpack.github.io/rprom/articles
