@@ -37,13 +37,13 @@ tsobj = new('TRANSYS')
 
 Now, we pick an eventlog from `eventdataR` package and feed our object with the data:
 
-
 ```{r get_data, eval=T}
 
 traffic_fines_df = eventdataR::traffic_fines %>% as.data.frame()
 
 traffic_fines_df %>% head %>% knitr::kable()
 ```
+
 We can define completion of an activity as status for our cases, 
 so we filter for `lifecycle` to be `complete`.
 You also need to specify critical column headers for the data feeder:
@@ -54,7 +54,6 @@ tsobj$feed.eventlog(traffic_fines_df %>% filter(lifecycle == 'complete'),
                     status_col = 'activity',
                     startTime_col = 'timestamp')
 ```
-
 
 # Process maps:
 

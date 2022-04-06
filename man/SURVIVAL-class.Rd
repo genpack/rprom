@@ -36,14 +36,29 @@ caseStart_tag, caseEnd_tag, age_varname, deathReason_varname, cp_attributes, nor
 
 \item{\code{goto(time)}}{Takes you to a given time}
 
-\item{\code{plot.death(reasons = NULL, categoricals = NULL, plotter = "plotly",
-  gain = 100, t0 = 0)}}{Plots Kaplan-Meier death chart}
+\item{\code{plot.death(
+  reasons = NULL,
+  categoricals = NULL,
+  plotter = "plotly",
+  gain = 100,
+  t0 = 0
+)}}{Plots Kaplan-Meier death chart}
 
-\item{\code{plot.hazard(reasons = NULL, categoricals = NULL, plotter = "plotly",
-  smooth_k = 6, gain = 100)}}{Plots Kaplan-Meier hazard chart}
+\item{\code{plot.hazard(
+  reasons = NULL,
+  categoricals = NULL,
+  plotter = "plotly",
+  smooth_k = 6,
+  gain = 100
+)}}{Plots Kaplan-Meier hazard chart}
 
-\item{\code{plot.survival(reasons = NULL, categoricals = NULL, plotter = "plotly",
-  gain = 100, t0 = 0)}}{Plots Kaplan-Meier survival chart}
+\item{\code{plot.survival(
+  reasons = NULL,
+  categoricals = NULL,
+  plotter = "plotly",
+  gain = 100,
+  t0 = 0
+)}}{Plots Kaplan-Meier survival chart}
 
 \item{\code{reset(...)}}{Reset given table names in data list}
 

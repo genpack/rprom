@@ -3,7 +3,6 @@
 \docType{package}
 \name{rprom}
 \alias{rprom}
-\alias{rprom-package}
 \title{A package for comprehensive process modelling in R}
 \description{
 This package has whatever you need to implement a process modelling.

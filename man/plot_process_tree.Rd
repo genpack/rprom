@@ -4,7 +4,7 @@
 \alias{plot_process_tree}
 \title{plots process tree for the transition system}
 \usage{
-plot_process_tree(obj, plotter = "sankeytree", ...)
+plot_process_tree(obj, plotter = "sankeytree", config = NULL, ...)
 }
 \description{
 plots process tree for the transition system

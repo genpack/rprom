@@ -6,8 +6,8 @@
 # Author:         Nima Ramezani
 # Email :         nima.ramezani@gmail.com
 # Start Date:     12 October 2018
-# Last Revision:  27 June 2019
-# Version:        0.1.5
+# Last Revision:  05 April 2022
+# Version:        0.1.6
 #
 
 # Version History:
@@ -21,6 +21,7 @@
 # 0.1.3     06 November 2018   Function plot_traces_sunburst() modified: builds chartname to avoid re-plotting with same spec
 # 0.1.4     20 June 2019       Function plot_process_map() modified: config argument is merged with default config
 # 0.1.5     27 June 2019       Additional arguments passed to plotting functions.
+# 0.1.6     05 April 2022      Function plot_transition_time_histogram() added.
 
 ############### Process Overview Visualisations:
 
@@ -250,7 +251,7 @@ plot_cases_status_pie = function(obj, measure = 'time', aggregator = 'sum', time
 
 #' @export plot_cases_table
 plot_cases_table = function(obj, time_unit = c('second', 'minute', 'hour', 'day', 'week', 'year'), plotter = 'DT', config = list(), ...){
-  # plotter   = match.arg(plotter)
+  plotter   = match.arg(plotter)
   time_unit = match.arg(time_unit)
   k         = 1.0/timeUnitCoeff[time_unit]
 
@@ -277,7 +278,7 @@ plot_status_gauge = function(obj, statusID, measure = c('loopRate', 'caseRatio')
 #' @export plot_status_next_pie
 plot_status_next_pie = function(obj, statusID, trim = NULL, plotter = 'plotly', config = list(), ...){
   if(verify(statusID, 'character', varname = 'statusID') %in% obj$get.statuses()){
-    AD = obj$get.adjacency()
+    AD = obj$get.adjacency(measure = 'freq')
     SN = AD[statusID, ] %>% t %>% as.data.frame %>% rownames2Column('status') %>%
       dplyr::select_('status', freq = 'statusID')
     if(!is.null(trim %>% verify('numeric', lengths = 1, domain = c(0, 1), varname = 'trim')))
@@ -293,7 +294,7 @@ plot_status_next_pie = function(obj, statusID, trim = NULL, plotter = 'plotly', 
 #' @export plot_status_prev_pie
 plot_status_prev_pie = function(obj, statusID, trim = NULL, plotter = 'plotly', config = list(), ...){
   if(verify(statusID, 'character', varname = 'statusID') %in% obj$get.statuses()){
-    AD = obj$get.adjacency()
+    AD = obj$get.adjacency(measure = 'freq')
     SP = AD[, statusID] %>% as.data.frame
     SP$status = rownames(AD)
     names(SP)[1] <- 'freq'
@@ -344,5 +345,82 @@ plot_case_timeline = function(obj){
   tblgrp = data.frame(id = unique(tbl$group)) %>% mutate(content = id)
   timevis::timevis(data = tbl, groups = tblgrp)
 }
+
+############### Non-exported incomplete functions: ###############
+
+plot_transition_time_distribution.graphics = function(obj, source, target, remove_outliers = T){
+  
+  vect = obj$history %>% filter(status == source, nextStatus == target) %>% pull(duration)
+  if(remove_outliers){
+    wol  = vect %>% rml::outlier(recursive = T) %>% which 
+    vect = vect[-wol]
+  }
+  hist(vect, breaks = 1000)
+  density(vect) %>% lines
+  
+}
+
+#' Shows the distribution of transition times (durations) in a histogram plot.
+#' @param obj object of class \code{TranSys}: The Transition System object from which transition durations are extracted
+#' @param source character: Transition source status. Must be within the source statuses of the transition system.
+#' @param target character: Transition destination status. Must be within the target statuses of the transition system.
+#' If you do not specify any of the two arguments \code{source} or \code{target}, 
+#' a drop-down menu will apear where you can select your desired transition.
+#' This feature is using package \code{crosstalk} and currently, 
+#' only works when plotter is \code{plotly}.
+#' @param remove_outliers logical: Should outliers be removed? 
+#' If set to \code{TRUE}, 
+#' outliers beyond four standard deviations from the mean, will be removed recursively.
+#' @param time_unit character: time unit to be used in the output visualization. 
+#' Can be one of these options: \code{'second', 'minute', 'hour', 'day', 'week', 'year'}.
+#' @param plotter character: Which plotter package do you want to generate the visualization?
+#' Currently, only these options are supported:
+#' \code{'plotly', 'ggplot2'} 
+#' 
+#' @export plot_transition_time_histogram
+plot_transition_time_histogram = function(
+  obj, source = NULL, target = NULL, remove_outliers = F,
+  time_unit = c('second', 'minute', 'hour', 'day', 'week', 'year'), 
+  plotter = c('plotly', 'ggplot2'), ...){
+  
+  plotter   = match.arg(plotter)
+  time_unit = match.arg(time_unit)
+  k         = 1.0/timeUnitCoeff[time_unit]
+  
+  elog = obj$history %>% filter(selected) %>% 
+    mutate(path = factor(path), duration = k*duration)
+
+  if(remove_outliers){
+    elog  %<>%
+      group_by(path) %>%
+      mutate(isoutlier = rml::outlier(duration, recursive = T)) %>%
+      ungroup %>% filter(!isoutlier)
+  }
+
+  if(is.null(source) | is.null(target)){
+    shared_history <- SharedData$new(elog %>% select(path, duration))
+
+    if(plotter == 'plotly'){
+      bscols(widths = 12,
+             list(
+               crosstalk::filter_select("path", "Transition", shared_history, ~path, multiple = F),
+               plotly::plot_ly(shared_history, x = ~duration, type = 'histogram', ...)
+             )
+      )
+    } else {
+      stop('crosstalk does not support given plotter %s. You need to specify source and target arguments.')
+    }
+  } else {
+    elog %<>% filter(status == source, nextStatus == target) %>% select(path, duration)
+    if(plotter == 'plotly'){
+        plotly::plot_ly(elog, x = ~duration, type = 'histogram', ...)
+    } else if (plotter == 'ggplot2'){
+        ggplot2::ggplot(elog, aes(x = duration)) + geom_histogram(...)
+    }
+  }
+}
+
+# Example:
+# plot_transition_time_distribution(tsobj, source = 'BILLED', target = 'STORNO', remove_outliers = T, plotter = 'ggplot2')
 
 

@@ -1,4 +1,4 @@
-# mlmtools (Machine Learning Mapper Tools)
+# dfg_tools (Dynamic Feature Generator Tools)
 
 # Standard Feature Names:
 
@@ -304,6 +304,12 @@ dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "s
     }
   }
   cat("Done!", '\n')
+
+  out = list()
+  cat('\n', "Creating time ends and event attribute maps ... ")
+  el %>% group_by(caseID) %>% summarise(minTime = min(eventTime), maxTime = max(eventTime)) %>% ungroup -> out$case_timends
+  el %>% distinct(eventType, attribute) -> out$event_attr_map
+  cat("Done!", '\n')
   
   if(sequential){
     cat('\n', "Adding clock events ... ")
@@ -313,9 +319,9 @@ dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "s
     #   do({data.frame(caseID = .$caseID, eventTime = seq(from = as.Date(.$minTime), to = as.Date(.$maxTime), by = period))})
 
     # Option 2: (Faster)
-    bibi = function(v){seq(from = as.Date(v[2]), to = as.Date(v[3]), by = period)}
+    lambda = function(v){seq(from = as.Date(v[2]), to = as.Date(v[3]), by = period)}
     out$case_timends %>% mutate(minTime = cut(minTime, breaks = period), maxTime = cut(maxTime, breaks = period)) %>%
-      apply(1, bibi) -> a
+      apply(1, lambda) -> a
     names(a) <- out$case_timends$caseID
     purrr::map_dfr(names(a), .f = function(v) {data.frame(caseID = v, eventTime = a[[v]])}) -> bb
 
@@ -327,12 +333,6 @@ dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "s
     cat("Done!", '\n')
   }
 
-  out = list()
-  cat('\n', "Creating time ends and event attribute maps ... ")
-  el %>% group_by(caseID) %>% summarise(minTime = min(eventTime), maxTime = max(eventTime)) %>% ungroup -> out$case_timends
-  el %>% distinct(eventType, attribute) -> out$event_attr_map
-  cat("Done!", '\n')
-  
   if(length(event_funs) > 0){
     cat('\n', "Creating event count table ... ")
     el %>%

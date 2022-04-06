@@ -12,8 +12,6 @@ library(dplyr)
 library(rbig)
 ```
 
-
-
 ## rprom: Process Modelling with R
 
 **rprom** is a R package for modelling any type of process model from event-based time-series dataset. 
@@ -74,7 +72,7 @@ patients_df = patients %>% as.data.frame()
 patients_df %>% head %>% knitr::kable()
 ```
 
-A Transition System is any entity which can take various stasuses at different times but can only be in one status at a time. 
+A Transition System is used to model entities(cases) which can take various stasuses at different times but can only be in one status at a time. 
 Depending on our definition of statuses, we can make changes to an eventlog so that our custom define status column is built. 
 These changes can include filtering some rows or modifying or combining one or multiple columns.
 In this example, we simply define completion of a task as a status, 

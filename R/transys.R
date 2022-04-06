@@ -48,6 +48,12 @@
 # 0.8.5     09 September 2019  Method feed.eventlog() modified: adds new events to the existing history.
 # 0.8.6     09 September 2019  Generic function simulate.TRANSYS() transfered as method run.simulate().
 # 0.8.7     26 August 2021     Argument freqThreshold renamed to freqRateCut.
+# 0.8.9     17 March 2022      Method feed.eventlog() changed: uses internal function .remove_eventlog_messing_values() to remove missing values in critical columns
+# 0.9.0     17 March 2022      Method reset() added.
+# 0.9.1     18 March 2022      Method get.adjacency() renamed to get.transition_matrix().
+# 0.9.2     18 March 2022      Method get.transition_matrix() modified: row associated with END status normalized.
+# 0.9.3     18 March 2022      Method to_periodic() added
+# 0.9.4     18 March 2022      Method random_walk() added
 
 # Good information for working with R functions:
 # http://adv-r.had.co.nz/Functions.html
@@ -67,6 +73,20 @@ library(dplyr)
 
 empt = Sys.time()[-1]
 empd = Sys.Date()[-1]
+
+
+.remove_eventlog_missing_values = function(ds, column){
+  tbd = c()
+  if(column %in% colnames(ds)){
+    tbd = is.na(ds[column]) %>% which
+    warnif(length(tbd) > 0, sprintf('%s events removed due to missing values in column %s', length(tbd), column))
+  }
+  if(length(tbd) > 0){
+    return(ds[-tbd, ])
+  } else {
+    return(ds)
+  }
+}
 
 # This global variable is repeated in prom, can transfer to rutils
 #' @export
@@ -132,19 +152,8 @@ TRANSYS = setRefClass('TRANSYS',
                             mutate(selected = T)
 
                           # dataset$status = gsub("[[:space:]]", "", as.character(dataset$status))
-
-                          tbd = is.na(dataset$status) |
-                            is.na(dataset$caseID) |
-                            is.na(dataset$startTime) |
-                            (dataset$status == "") |
-                            (dataset$caseID == "") |
-                            is.na(dataset$caseStart) |
-                            is.na(dataset$caseEnd)
-
-                          tbd = which(tbd)
-                          if(length(tbd) > 0){
-                            warnif(T, length(tbd) %++% ' events removed due to missing values in one of these critical columns: caseID, status, startTime, caseStart or caseEnd!')
-                            dataset <- dataset[- tbd, ]
+                          for(column in c('caseID', 'status', 'startTime', 'caseStart', 'caseEnd')){
+                            dataset %<>% .remove_eventlog_missing_values(column) 
                           }
 
                           support('dplyr')
@@ -522,47 +531,36 @@ TRANSYS = setRefClass('TRANSYS',
                         # valid.link.weights = c('totFreq', 'meanCaseFreq', 'medCaseFreq', 'sdCaseFreq', 'totalTime', ...)
                         # totalFreq:    Total transition frequency
                         
-                        # meanCaseFreq: average transition count per case
-                        # medCaseFreq:  median case transition frequency (half of cases have transition frequency higher than this value)
-                        # sdCaseFreq:   standard deviation of transition frequencies among cases
-                        # totalTime:    Total transition time
-                        # meanCaseTime: average transition time per case
-                        # medCaseTime:  median case transition time (half of cases have transition time higher than this value)
-                        # sdCaseTime:   standard deviation of transition time among cases
-                        # meanTime:average transition time per transition
-                        # medTime :median transition time (half of transitions have transition time higher than this value)
-                        # sdTime  :standard deviation of transition time among transitions(half of transitions have transition time higher than this value)
-                        # meanCaseEntryFreq: how many times in average a case has entered this status
                         get.nodes = function(full = F){
                           "
-                          Returns the status profile which is a data.frame containing features associated with the statuses of the transition system.
+                          Returns the status profile which is a data frame containing features associated with the statuses of the transition system.
                           \\cr 
                           Each status stablish a node in the process map graph from which you can build a Markov-Chain (MC) 
                           model and use it to determine the steady state probabilities or run a memory-less process simulation.
                           \\cr 
                           If you run this method once, the output table will be accessible via reports$nodes.
                           If the function is called for the second time, it returns the same table as before if you do not reset the object.
-                          \\cr 
+                          \\cr \\cr 
                           \\emph{Arguments:} 
-                          \\cr 
-                          * \\code{full (logical)}: If set to true, case filtering is ignored.
-                          \\cr 
+                          \\cr \\cr
+                          * \\code{full (logical)}: If set to \\code{TRUE}, case filtering is ignored and all cases will be considered in computing the statistics.
+                          \\cr  \\cr
                           \\emph{Output:} 
+                          \\cr \\cr
+                          \\code{(data.frame)}: Includes the following columns
+                          (columns with keyword \\code{case} are generated only if \\code{settings$include_case_measures} is \\code{TRUE}):
+                          \\cr   \\cr
+                          \\code{totExitFreq}: Over all cases, total count of transitions from the status to other statuses.
                           \\cr 
-                          \\code{(data.frame)}: Includes the following columns 
-                          (columns with keyword 'case' are generated only if settings$include_case_measures is TRUE):
+                          \\code{totEntryFreq}: Over all cases, total count of transitions into the status from other statuses .
                           \\cr 
-                          * \\code{totExitFreq}: Over all cases, total count of transitions from the status to other statuses.
+                          \\code{totalDuration}: Sum of duration(time) that cases spent in the status.
                           \\cr 
-                          * \\code{totEntryFreq}: Over all cases, total count of transitions into the status from other statuses .
+                          \\code{meanDuration}: Average duration(time) that each case spent in the status.
                           \\cr 
-                          \\code{totalDuration}: Sum of duration(time) cases were in the status.
+                          \\code{medDuration}: Median of duration(time) that cases spent in the status.
                           \\cr 
-                          \\code{meanDuration}: Average duration(time) each case were in the status.
-                          \\cr 
-                          \\code{medDuration}: Median of duration(time) cases were in the status.
-                          \\cr 
-                          \\code{sdDuration}: Standard deviation of duration(time) cases were in the status.
+                          \\code{sdDuration}: Standard deviation of duration(time) that cases were in the status.
                           \\cr 
                           \\code{nCaseEntry}: How many cases have at least once entered into the status.
                           \\cr 
@@ -570,6 +568,7 @@ TRANSYS = setRefClass('TRANSYS',
                           \\cr 
                           \\code{meanExitCaseFrequency}: indicates how many times in average, each case has exited from the status
                           "
+                          
                           if(full){
                             if(!is.empty(tables$nodes)){return(tables$nodes)} else {H = history}
                           } else {
@@ -611,6 +610,40 @@ TRANSYS = setRefClass('TRANSYS',
                         },
 
                         get.links = function(full = F){
+                          
+                          "
+                          Returns the transition profile which is a data frame containing features associated with the transitions of cases from one status to other.
+                          \\cr 
+                          Each transition stablish a link in the process map graph from which you can build a Markov-Chain (MC) 
+                          model and use it to determine the steady state probabilities or run a memory-less process simulation.
+                          \\cr 
+                          If you run this method once, the output table will be accessible via \\code{reports$links}.
+                          If the function is called for the second time, it returns the same table as before if you do not reset the object.
+                          \\cr \\cr 
+                          \\emph{Arguments:} \\cr \\cr
+                          * \\code{full (logical)}: If set to \\code{TRUE}, case filtering is ignored and all cases will be considered in computing the statistics.
+                          \\cr  \\cr
+                          \\emph{Output:} 
+                          \\cr \\cr
+                          \\code{(data.frame)}: Includes the following columns
+                          (columns with keyword \\code{case} are generated only if \\code{settings$include_case_measures} is \\code{TRUE}):
+                          \\cr   \\cr
+
+                          \\code{meanCaseFreq}: average transition count per case \\cr
+                          \\code{medCaseFreq}:  median case transition frequency 
+                          (half of cases have transition frequency higher than this value) \\cr
+                          \\code{sdCaseFreq}: standard deviation of transition frequencies among cases \\cr
+                          \\code{totalTime}: Total transition time \\cr
+                          \\code{meanCaseTime}: average transition time per case  \\cr
+                          \\code{medCaseTime}: median case transition time (half of cases have transition time higher than this value)  \\cr
+                          \\code{sdCaseTime}: standard deviation of transition time among cases  \\cr
+                          \\code{meanTime}: average: transition time per transition  \\cr
+                          \\code{medTime}: median transition time (half of transitions have transition time higher than this value)  \\cr
+                          \\code{sdTime}: standard deviation of transition time among transitions(half of transitions have transition time higher than this value)  \\cr
+                          \\code{meanCaseEntryFreq}: how many times in average a case has entered this status  \\cr
+
+                          "
+                          
                           if(full){
                             if(!is.empty(tables$links)){return(tables$links)} else {H = history}
                           } else {
@@ -705,7 +738,33 @@ TRANSYS = setRefClass('TRANSYS',
                           return(report$time.status.volume)
                         },
                         
-                        get.adjacency = function(measure = c('freq', 'time', 'rate'), full = F, aggregator = c('sum', 'mean', 'median', 'sd'), remove_ends = F){
+                        get.transition_matrix = function(measure = c('rate', 'freq', 'time'), aggregator = c('sum', 'mean', 'median', 'sd'), remove_ends = F, full = F){
+                          "
+                          Returns the square \\href{https://en.wikipedia.org/wiki/Adjacency_matrix}{Adjecancy Matrix}
+                          associated with the transition system. It returns the same information that method get.links() provides but in a square matrix. \\cr \\cr
+                          
+                          \\emph{Arguments:} \\cr \\cr
+                          
+                          \\code{measure (character)}: one of the three options: \\code{'rate'}, \\code{'freq'} or \\code{'time'}.
+                          The default is \\code{'rate'}. Any other value will raise a value error. \\cr
+                          - \\code{'rate'}: the returned matrix contains rates of transitions from one status to itself or another status as 
+                          percentages of total cases in the origin status. \\cr 
+                          For example, if \\emph{A} and \\emph{B} are two statuses in the transition system, 
+                          the value of cell in row A and column B shows what fraction of cases transitioned from status A to B. \\cr
+                          - \\code{'freq'}: the returned matrix contains raw frequencies of case transitions. \\cr
+                          - \\code{'time'}: the returned matrix contains aggregated durations of case transitions. \\cr \\cr
+                          
+                          \\code{aggregator (character)}: Only used when \\code{measure} is set to \\code{'time'}.
+                          Can be one of these options \\code{'sum', 'mean', 'median', 'sd'}
+                          This specifies aggregator to aggregate transition times (durations). 
+                          For example if \\code{measure = 'time'} and  \\code{aggregator = 'mean'}, 
+                          the value of cell in row A and column B shows the average transition time from status A to B 
+                          (average time cases spent in status A before migrating to status B) \\cr \\cr
+                          
+                          \\code{remove_ends (boolean)}: If set to \\code{TRUE}, then the rows and columns 
+                          associated with the START, END, ENTER and EXIT statuses will be eliminated from the adjacency matrix.
+                          "
+                          
                           measure      = match.arg(measure)
                           aggregator   = match.arg(aggregator)
                           tabName      = 'adjacency' %>% paste(measure, aggregator, chif(full, 'full', ''), sep = '.')
@@ -726,6 +785,10 @@ TRANSYS = setRefClass('TRANSYS',
                             if(measure == 'rate'){
                               rsms = rowSums(report[[tabName]])
                               report[[tabName]] <<- report[[tabName]] %>% apply(2, function(v) v/rsms)
+                            }
+                            report[[tabName]] <<- na2zero(report[[tabName]])
+                            if('END' %in% rownames(report[[tabName]])){
+                              report[[tabName]]['END', 'END'] <<- 1.0
                             }
                           }
                           return(report[[tabName]])
@@ -788,12 +851,14 @@ TRANSYS = setRefClass('TRANSYS',
                         },
                         
                         get.longest_path = function(){
-                          "Returns the longest sequence observed"
+                          "
+                          Returns the longest sequence observed
+                          "
                           if(is.null(report$longest_path)){
                               get.traces() %>% pull(path) %>% strsplit('-') -> a
                               report$longest_path <<- a[[a %>% lapply(length) %>% unlist %>% order %>% tail(1)]]
-                            }
-                            return(report$longest_path)
+                          }
+                          return(report$longest_path)
                         },
                         
                         get.transition_probabilities = function(){
@@ -890,7 +955,7 @@ TRANSYS = setRefClass('TRANSYS',
                             
 
                             if(!is.null(freqRateCut %>% verify(c('numeric','integer'), domain = c(0, 1), lengths = 1))){
-                              adjcy = get.adjacency()
+                              adjcy = get.transition_matrix(measure = 'freq')
                               if(!is.empty(adjcy)){
                                 adjcy %>% apply(1, vect.normalise) %>% t %>% as.data.frame %>% rownames2Column('status') %>%
                                   reshape2::melt(id.vars = 'status', variable.name = "nextStatus") %>% filter(value < 1 - freqRateCut) -> paths
@@ -910,6 +975,66 @@ TRANSYS = setRefClass('TRANSYS',
                             clear()
                           }
                         },
+                        
+                        reset = function(){
+                          tables        <<- list()
+                          report        <<- list()
+                          metrics       <<- list()
+                          plots         <<- list()
+                          timeseries    <<- list()
+                          timeseries.full  <<- list()
+                        },
+                        
+                        random_walk = function(starting_status = 'START', num_steps = 1){
+                          "
+                          Runs a random walk analysis starting from a given status and returns a dataframe
+                          containing probability distributions over statuses at each step
+                          
+                          \\emph{Arguments:} \\cr \\cr
+                          
+                          \\code{starting_status (character)}: must be one of statuses defined in the transition system.
+                          The default is \\code{'START'}. \\cr
+
+                          \\code{num_steps (integer)}: Number of steps in the random walk.
+
+                          "
+                          TM  = get.transition_matrix()
+                          p0  = rep(0, nrow(TM))
+                          assert(starting_status %in% rownames(TM), "Given 'starting_status' does not exist in the list of statuses")
+                          p0[which(rownames(TM) == starting_status)] = 1.0
+
+                          p = list(p0 %*% TM)
+                          if (num_steps > 1){
+                            for (i in 2:num_steps){
+                              p[[i]] = p[[i-1]] %*% TM
+                            }
+                          }
+                          
+                          purrr::reduce(p, rbind) %>% as.data.frame
+                        },
+                        
+                        to_periodic = function(period = 'day'){
+                          
+                          status_map  = history$status %>% as.factor %>% unique
+                          status_code = as.integer(status_map)
+                          status_map  %<>% as.character
+                          status_map[status_code] = status_map
+                          
+                          history %>% 
+                            filter(selected) %>% 
+                            mutate(status_code = as.factor(status) %>% as.integer, eventType = 'TRANS', attribute = 'status') %>% 
+                            select(caseID, eventTime = startTime, eventType, attribute, value = status_code) %>% 
+                            dfg_pack(period = period, sequential = T, event_funs = c(), var_funs = 'last') -> pack
+                          
+                          tsp = new("TRANSYS")
+                          pack$var_last %>% 
+                            mutate(status = status_map[TRANS_status_last]) %>% 
+                            select(caseID, eventTime, status) %>% 
+                            tsp$feed.eventlog(startTime_col = 'eventTime')
+                          
+                          return(tsp)
+                        },
+                        
 
                         # Among the cases in the case list, returns IDs of cases who have ever been in the given 'status'
                         casesInStatus = function(status){
@@ -922,7 +1047,16 @@ TRANSYS = setRefClass('TRANSYS',
                           return(casedf$caseID)
                         },
                         
-                        run.simulation = function(start_dt, target_dt, new_starts = NULL, event_generator = gen_next_events, time_generator = gen_transition_times, silent = T, ...){
+                        # Argument 'time_generator' must be class function. This function should have three and only three inputs:
+                        # 'histobj': an object of class TRANSYS. 'histobj' will be passed to this function directly
+                        # The output of this function must be a dataframe with added column 'pred_duration' containing 
+                        # the estimated/predicted durations.
+                        # all argument in ... will be passed to both event_generator and time_generator.
+                        run.simulation = function(
+                          start_dt, target_dt, new_starts = NULL, 
+                          event_generator = markovchain_transition_classifier, 
+                          time_generator = markovchain_transition_time_estimator, silent = T, ...){
+                          
                           start_dt     <- as.time(start_dt)
                           target_dt    <- as.time(target_dt)
                           final_events <- tibble(caseID = character(), status = character(), startTime = empt, nextStatus = character(), nxtTrTime = empt)
@@ -954,7 +1088,8 @@ TRANSYS = setRefClass('TRANSYS',
                           
                           while(nrow(tracking) > 0){
                             tracking <- event_generator(tracking, histobj = histobj, ...) %>% 
-                              time_generator(histobj = histobj, start_dt = start_dt, new_events = final_events, ...)
+                              time_generator(histobj = histobj, current_time = start_dt, new_events = final_events, ...) %>% 
+                              mutate(nxtTrTime = startTime + pred_duration)
                             
                             final_events <- rbind(final_events, tracking)
                             # extract completed events and those that wont be completed before target_dt
@@ -1015,3 +1150,6 @@ summary.TRANSYS = function(obj){
     chif(is.empty(ff), 'No filtering applied', names(ff) %>% paste(":") %>% paste(ff, collapse = ' , ')))
   # "32,400 filtered) and 24 statuses (13 filtered) impacting 2,450 cases (83 filtered). Filter on completed cases with relative frequency threshold of 0.25 and loops range between 0 and 12"
 }
+
+
+

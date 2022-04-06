@@ -1,14 +1,14 @@
 Package: rprom
 Type: Package
 Title: This package will be a complete toolbox for process mining, management, prediction, simulation and optimization
-Version: 2.0.6
-Date: 05 August 2021
+Version: 2.1.6
+Date: 05 April 2022
 Author: Nima Ramezani
 Maintainer: Nima Ramezani <nima.ramezani@gmail.com>
 Description: The package is still under construction. Documentation incomplete! Use at your own risk!
 License: Artistic-2.0
 LazyData: TRUE
-RoxygenNote: 6.1.1
+RoxygenNote: 7.1.2
 Collate:
     'dfgtools.R'
     'elsyd.R'

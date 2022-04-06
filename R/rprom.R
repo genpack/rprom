@@ -11,6 +11,8 @@
 #' @include tstools.R
 #' @include tsvis.R
 #' @include dfgtools.R
+#' @import dplyr
+#' @import rutils
 
 # Current Version: 2.0.4
 # Issue Date: 08 November 2016
@@ -64,5 +66,10 @@
 # 1.9.7       17 April 2021        function moving_aggregator() added: function dfg.historic() updated. 
 # 2.0.5       03 August 2021       Revisit to update. 
 # 2.0.6       05 August 2021       method get.nodes() in transys.R modified: column nCaseExit added.
+# 2.1.0       17 March 2022        transys.R updated to version 0.9.0
+# 2.1.4       18 March 2022        transys.R updated to version 0.9.4
+# 2.1.5       05 April 2022        tsvis.R updated to version 0.1.6
+# 2.1.6       05 April 2022        tstools.R updated to version 0.1.0
+
 NULL
 #> NULL

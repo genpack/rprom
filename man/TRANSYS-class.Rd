@@ -23,10 +23,20 @@ A Transistopn System is the more general case of a Markov Chain model descibing 
 \section{Methods}{
 
 \describe{
-\item{\code{feed.eventlog(dataset, caseID_col = "caseID", status_col = "status",
-  startTime_col = "startTime", caseStartFlag_col = NULL,
-  caseEndFlag_col = NULL, caseStartTags = NULL, caseEndTags = NULL,
-  sort_startTime = T, add_start = T, remove_sst = F, extra_col = NULL)}}{Feeds an eventlog as a data.frame or tibble to train the transition system model.}
+\item{\code{feed.eventlog(
+  dataset,
+  caseID_col = "caseID",
+  status_col = "status",
+  startTime_col = "startTime",
+  caseStartFlag_col = NULL,
+  caseEndFlag_col = NULL,
+  caseStartTags = NULL,
+  caseEndTags = NULL,
+  sort_startTime = T,
+  add_start = T,
+  remove_sst = F,
+  extra_col = NULL
+)}}{Feeds an eventlog as a data.frame or tibble to train the transition system model.}
 
 \item{\code{get.case.path()}}{Returns trace, path, DNA or status sequence of each case}
 
@@ -34,36 +44,68 @@ A Transistopn System is the more general case of a Markov Chain model descibing 
 
 \item{\code{get.case.status.time()}}{Returns entry time of each case to each status in a matrix}
 
+\item{\code{get.links(full = F)}}{                          Returns the transition profile which is a data frame containing features associated with the transitions of cases from one status to other.
+                          \cr 
+                          Each transition stablish a link in the process map graph from which you can build a Markov-Chain (MC) 
+                          model and use it to determine the steady state probabilities or run a memory-less process simulation.
+                          \cr 
+                          If you run this method once, the output table will be accessible via \code{reports$links}.
+                          If the function is called for the second time, it returns the same table as before if you do not reset the object.
+                          \cr \cr 
+                          \emph{Arguments:} \cr \cr
+                          * \code{full (logical)}: If set to \code{TRUE}, case filtering is ignored and all cases will be considered in computing the statistics.
+                          \cr  \cr
+                          \emph{Output:} 
+                          \cr \cr
+                          \code{(data.frame)}: Includes the following columns
+                          (columns with keyword \code{case} are generated only if \code{settings$include_case_measures} is \code{TRUE}):
+                          \cr   \cr
+
+                          \code{meanCaseFreq}: average transition count per case \cr
+                          \code{medCaseFreq}:  median case transition frequency 
+                          (half of cases have transition frequency higher than this value) \cr
+                          \code{sdCaseFreq}: standard deviation of transition frequencies among cases \cr
+                          \code{totalTime}: Total transition time \cr
+                          \code{meanCaseTime}: average transition time per case  \cr
+                          \code{medCaseTime}: median case transition time (half of cases have transition time higher than this value)  \cr
+                          \code{sdCaseTime}: standard deviation of transition time among cases  \cr
+                          \code{meanTime}: average: transition time per transition  \cr
+                          \code{medTime}: median transition time (half of transitions have transition time higher than this value)  \cr
+                          \code{sdTime}: standard deviation of transition time among transitions(half of transitions have transition time higher than this value)  \cr
+                          \code{meanCaseEntryFreq}: how many times in average a case has entered this status  \cr
+
+                          }
+
 \item{\code{get.longest_path()}}{Returns the longest sequence observed}
 
-\item{\code{get.nodes(full = F)}}{Returns the status profile which is a data.frame containing features associated with the statuses of the transition system.
+\item{\code{get.nodes(full = F)}}{Returns the status profile which is a data frame containing features associated with the statuses of the transition system.
 \cr 
 Each status stablish a node in the process map graph from which you can build a Markov-Chain (MC) 
 model and use it to determine the steady state probabilities or run a memory-less process simulation.
 \cr 
 If you run this method once, the output table will be accessible via reports$nodes.
 If the function is called for the second time, it returns the same table as before if you do not reset the object.
-\cr 
+\cr \cr 
 \emph{Arguments:} 
-\cr 
-* \code{full (logical)}: If set to true, case filtering is ignored.
-\cr 
+\cr \cr
+* \code{full (logical)}: If set to \code{TRUE}, case filtering is ignored and all cases will be considered in computing the statistics.
+\cr  \cr
 \emph{Output:} 
+\cr \cr
+\code{(data.frame)}: Includes the following columns
+(columns with keyword \code{case} are generated only if \code{settings$include_case_measures} is \code{TRUE}):
+\cr   \cr
+\code{totExitFreq}: Over all cases, total count of transitions from the status to other statuses.
 \cr 
-\code{(data.frame)}: Includes the following columns 
-(columns with keyword 'case' are generated only if settings$include_case_measures is TRUE):
+\code{totEntryFreq}: Over all cases, total count of transitions into the status from other statuses .
 \cr 
-* \code{totExitFreq}: Over all cases, total count of transitions from the status to other statuses.
+\code{totalDuration}: Sum of duration(time) that cases spent in the status.
 \cr 
-* \code{totEntryFreq}: Over all cases, total count of transitions into the status from other statuses .
+\code{meanDuration}: Average duration(time) that each case spent in the status.
 \cr 
-\code{totalDuration}: Sum of duration(time) cases were in the status.
+\code{medDuration}: Median of duration(time) that cases spent in the status.
 \cr 
-\code{meanDuration}: Average duration(time) each case were in the status.
-\cr 
-\code{medDuration}: Median of duration(time) cases were in the status.
-\cr 
-\code{sdDuration}: Standard deviation of duration(time) cases were in the status.
+\code{sdDuration}: Standard deviation of duration(time) that cases were in the status.
 \cr 
 \code{nCaseEntry}: How many cases have at least once entered into the status.
 \cr 
@@ -72,5 +114,46 @@ If the function is called for the second time, it returns the same table as befo
 \code{meanExitCaseFrequency}: indicates how many times in average, each case has exited from the status}
 
 \item{\code{get.status.case.time()}}{Returns entry time to each status for each case in a matrix (transpose of 'case.status.time')}
+
+\item{\code{get.transition_matrix(
+  measure = c("rate", "freq", "time"),
+  aggregator = c("sum", "mean", "median", "sd"),
+  remove_ends = F,
+  full = F
+)}}{Returns the square \href{https://en.wikipedia.org/wiki/Adjacency_matrix}{Adjecancy Matrix}
+associated with the transition system. It returns the same information that method get.links() provides but in a square matrix. \cr \cr
+
+\emph{Arguments:} \cr \cr
+
+\code{measure (character)}: one of the three options: \code{'rate'}, \code{'freq'} or \code{'time'}.
+The default is \code{'rate'}. Any other value will raise a value error. \cr
+- \code{'rate'}: the returned matrix contains rates of transitions from one status to itself or another status as 
+percentages of total cases in the origin status. \cr 
+For example, if \emph{A} and \emph{B} are two statuses in the transition system, 
+the value of cell in row A and column B shows what fraction of cases transitioned from status A to B. \cr
+- \code{'freq'}: the returned matrix contains raw frequencies of case transitions. \cr
+- \code{'time'}: the returned matrix contains aggregated durations of case transitions. \cr \cr
+
+\code{aggregator (character)}: Only used when \code{measure} is set to \code{'time'}.
+Can be one of these options \code{'sum', 'mean', 'median', 'sd'}
+This specifies aggregator to aggregate transition times (durations). 
+For example if \code{measure = 'time'} and  \code{aggregator = 'mean'}, 
+the value of cell in row A and column B shows the average transition time from status A to B 
+(average time cases spent in status A before migrating to status B) \cr \cr
+
+\code{remove_ends (boolean)}: If set to \code{TRUE}, then the rows and columns 
+associated with the START, END, ENTER and EXIT statuses will be eliminated from the adjacency matrix.}
+
+\item{\code{random_walk(starting_status = "START", num_steps = 1)}}{                          Runs a random walk analysis starting from a given status and returns a dataframe
+                          containing probability distributions over statuses at each step
+                          
+                          \emph{Arguments:} \cr \cr
+                          
+                          \code{starting_status (character)}: must be one of statuses defined in the transition system.
+                          The default is \code{'START'}. \cr
+
+                          \code{num_steps (integer)}: Number of steps in the random walk.
+
+                          }
 }}
 

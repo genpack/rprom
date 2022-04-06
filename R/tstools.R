@@ -6,8 +6,8 @@
 # Author:         Nima Ramezani
 # Email :         nima.ramezani@gmail.com
 # Start Date:     06 July 2018
-# Last Revision:  09 September 2019
-# Version:        0.0.8
+# Last Revision:  05 April 2022
+# Version:        0.1.0
 #
 
 # Version History:
@@ -18,6 +18,8 @@
 # 0.0.2     16 October 2018   Function buildProcessMapPackage() modified: argument linkLabel added
 # 0.0.7     08 August 2019    Functions markovchain_transition_classifier(), markovchain_transition_time_estimator(), gen_next_events(), gen_transition_times() , gen_transition_times_exp()  modified: argument linkLabel added
 # 0.0.8     09 September 2019 Functions gen_next_events() modified: grouping should be done before generating a random value.
+# 0.0.9     28 March 2022     Functions markovchain_transition_time_estimator() modified: function difftime() with units set as secs used for computing time difference between current_time and transition time.
+# 0.1.0     05 April 2022     Functions Functions gen_next_events() and gen_transition_times() removed and embedded in markovchain_transition_classifier() and markovchain_transition_time_estimator() respectively.
 
 buildProcessMapPackage = function(obj, nodeSize = 'totalEntryFreq', nodeColor = 'totalEntryFreq', linkColor = 'totalFreq', linkWidth = 'totalFreq', linkLabel = NULL, linkLength = NULL, config = NULL){
   # todo: build tooltip, link label
@@ -78,38 +80,22 @@ buildTreeTable = function(traces){
 }
 
 
-# simple transition probability model based on memory-less markov-chain model
+#' Generates predicted transition targets based on markov chain random walk simulation. 
+#' This function is a simple transition probability model based on memory-less markov-chain model.
+#' It randomly picks destination for each given transition respecting 
+#' the probability distribution of each transition target.
+#' Transition probability distribution are extracted from given argument \code{histobj}.
+#' This is the default target generator engine for the transition system monte-carlo simulation.
+#' The \code{TranSys} simulator engine calls this function multiple times during the sumulation.
+#'
+#' @param histobj object of class \code{TranSys} containing history of all transitions upto the current time \code{current_time}
+#' @param input dataframe containing transitions for which a transition end time needs to be generated
+#' @param current_time POSIXct containing the current time. All transition end times will be after the specified current time.
+#' @return dataframe with additional column \code{nextStatus}. 
+#' @export
 markovchain_transition_classifier = function(histobj, input, ...){
-  events      <- histobj$get.nodes()
-  # transitions <- histobj$get.links()
-  # 
-  # transition_probabilities <- transitions %>% 
-  #   select(status, nextStatus, totalFreq) %>%
-  #   arrange(status, nextStatus) %>%
-  #   group_by(status) %>%
-  #   mutate(cum_freq = cumsum(totalFreq)) %>%
-  #   mutate(cum_prob = cum_freq/sum(totalFreq)) %>%
-  #   ungroup() %>%
-  #   select(status, nextStatus, cum_prob)
-  
-  input %>% left_join(histobj$get.transition_probabilities(), by = "status")
-}
-
-markovchain_transition_time_estimator = function(histobj, input, start_dt, ...){
-  transitions <- histobj$get.links()
-  
-  transition_durations <- transitions %>% 
-    select(status, nextStatus, meanTime, sdTime) %>%
-    arrange(status, nextStatus) %>%
-    na2zero
-  
-  input %>% left_join(transition_durations, by = c("status", "nextStatus")) %>% na.omit %>%
-    mutate(pred_duration = gen.random.cond(N = n(), family = 'normal', mean = meanTime, sd = sdTime, x0 = as.numeric(start_dt - startTime)))
-}
-
-# Default next events generator
-gen_next_events <- function(input, histobj, transition_classifier = markovchain_transition_classifier, ...) {
-  transition_classifier(histobj = histobj, input = input, ...) %>% 
+  input %>% 
+    left_join(histobj$get.transition_probabilities(), by = "status") %>% 
     group_by(caseID, status) %>% 
     mutate(rand_var = runif(1)) %>%
     filter(rand_var < cum_prob) %>%
@@ -118,17 +104,46 @@ gen_next_events <- function(input, histobj, transition_classifier = markovchain_
     select(caseID, status, nextStatus, startTime)
 }
 
-## Argument 'transition_time_estimator' must be class function. This function should have three and only three inputs:
-# 'histobj': an object of class TRANSYS. 'histobj' will be passed to this function directly
-# 
-# Default next transition time generator
-gen_transition_times = function(input, histobj, start_dt, transition_time_estimator = markovchain_transition_time_estimator, ...){
-  transition_time_estimator(histobj = histobj, input = input, start_dt = start_dt, ...) %>% 
-    mutate(nxtTrTime = startTime + pred_duration)
+
+#' Generates predicted transition times based on marcovchanin random walk simulation. 
+#' It generates random transition time (status durations) based on the average observed transition times
+#' (given by argument \code{histobj}). 
+#' MarkovChain transition time generator assumes transition times have normal distribution.
+#' This is the default time generator engine for the transition system monte-carlo simulation.
+#'
+#' @param histobj object of class \code{TranSys} containing history of all transitions upto the current time \code{current_time}
+#' @param input dataframe containing transitions for which a transition end time needs to be generated
+#' @param current_time POSIXct containing the current time. All transition end times will be after the specified current time.
+#' @return dataframe with additional column \code{pred_duration} in seconds. 
+#' @export
+markovchain_transition_time_estimator = function(
+  histobj, input, current_time,
+  family = c('normal', 'exponential', 'exp', 'gaussian', 'norm'), ...){
+  
+  family %<>% tolower
+  family = match.arg(family)
+  
+  transitions <- histobj$get.links()
+  
+  transition_durations <- transitions %>% 
+    select(status, nextStatus, meanTime, sdTime) %>%
+    arrange(status, nextStatus) %>%
+    na2zero
+  
+  input %<>% left_join(transition_durations, by = c("status", "nextStatus")) %>% na.omit
+  
+  if(family %in% c('normal', 'nprm', 'gaussian')){
+    input %>% mutate(pred_duration = gen.random.highpass(N = n(), family = 'normal', mean = meanTime, sd = sdTime, x0 = difftime(current_time, startTime, units = 'secs') %>% as.numeric))
+  } else if (family %in% c('exp', 'exponential')){
+    input %>% mutate(pred_duration = gen.random.highpass(N = n(), family = 'exp', rate = 1.0/meanTime, x0 = difftime(current_time, startTime, units = 'secs') %>% as.numeric))
+  } else {
+    stop('Unknown family %s!' %>% sprintf(family))
+  }
 }
 
-gen_transition_times_exp = function(input, transition_durations, start_dt, ...){
+
+gen_transition_times_exp = function(input, transition_durations, current_time, ...){
   input %>% 
     left_join(transition_durations, by = c("status", "nextStatus")) %>% na.omit %>%
-    mutate(nxtTrTime = startTime + gen.random.cond(N = n(), family = 'exp', rate = 1.0/meanTime, x0 = as.numeric(start_dt - startTime)))
+    mutate(nxtTrTime = startTime + gen.random.highpass(N = n(), family = 'exp', rate = 1.0/meanTime, x0 = as.numeric(current_time - startTime)))
 }
