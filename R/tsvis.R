@@ -278,7 +278,7 @@ plot_status_gauge = function(obj, statusID, measure = c('loopRate', 'caseRatio')
 #' @export plot_status_next_pie
 plot_status_next_pie = function(obj, statusID, trim = NULL, plotter = 'plotly', config = list(), ...){
   if(verify(statusID, 'character', varname = 'statusID') %in% obj$get.statuses()){
-    AD = obj$get.adjacency(measure = 'freq')
+    AD = obj$get.transition_matrix(measure = 'freq')
     SN = AD[statusID, ] %>% t %>% as.data.frame %>% rownames2Column('status') %>%
       dplyr::select_('status', freq = 'statusID')
     if(!is.null(trim %>% verify('numeric', lengths = 1, domain = c(0, 1), varname = 'trim')))
@@ -361,7 +361,7 @@ plot_transition_time_distribution.graphics = function(obj, source, target, remov
 }
 
 #' Shows the distribution of transition times (durations) in a histogram plot.
-#' @param obj object of class \code{TranSys}: The Transition System object from which transition durations are extracted
+#' @param obj object of class \code{TransitionSystem}: The Transition System object from which transition durations are extracted
 #' @param source character: Transition source status. Must be within the source statuses of the transition system.
 #' @param target character: Transition destination status. Must be within the target statuses of the transition system.
 #' If you do not specify any of the two arguments \code{source} or \code{target}, 

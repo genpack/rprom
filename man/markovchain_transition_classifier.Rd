@@ -8,12 +8,12 @@ It randomly picks destination for each given transition respecting
 the probability distribution of each transition target.
 Transition probability distribution are extracted from given argument \code{histobj}.
 This is the default target generator engine for the transition system monte-carlo simulation.
-The \code{TranSys} simulator engine calls this function multiple times during the sumulation.}
+The \code{TransitionSystem} simulator engine calls this function multiple times during the sumulation.}
 \usage{
 markovchain_transition_classifier(histobj, input, ...)
 }
 \arguments{
-\item{histobj}{object of class \code{TranSys} containing history of all transitions upto the current time \code{current_time}}
+\item{histobj}{object of class \code{TransitionSystem} containing history of all transitions upto the current time \code{current_time}}
 
 \item{input}{dataframe containing transitions for which a transition end time needs to be generated}
 
@@ -29,5 +29,5 @@ It randomly picks destination for each given transition respecting
 the probability distribution of each transition target.
 Transition probability distribution are extracted from given argument \code{histobj}.
 This is the default target generator engine for the transition system monte-carlo simulation.
-The \code{TranSys} simulator engine calls this function multiple times during the sumulation.
+The \code{TransitionSystem} simulator engine calls this function multiple times during the sumulation.
 }

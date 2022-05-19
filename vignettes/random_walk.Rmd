@@ -1,0 +1,169 @@
+---
+title: "Random Walk on Process Graph"
+author: "Nima Ramezani"
+date: "16/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = F)
+library(magrittr)
+library(dplyr)
+library(lubridate)
+
+library(rbig)
+library(rutils)
+library(rvis)
+library(rprom)
+```
+
+## Introduction
+
+A random walk on a graph is a process that begins at some status (vertex, node or state), and 
+at each time step moves to another status. 
+
+When the graph edges are unweighted, 
+the transition destination status is chosen uniformly at random among the neighbors of the current status. 
+cases transition to a neighbor status with probability proportional to the weight of the corresponding edge. 
+While the case traces (list of statuses in the order they are visited) of a particular random walk is sometimes of interest, 
+it is often more productive to reason about the expected behavior of a random walk. 
+To this end, we will investigate the probability distribution over the statuses after a certain number of steps.
+
+In this article, we use *rprom* to study random walks on a process map represented by a directed graph. 
+
+## Transition Matrix
+
+We will let the vector $\vec{p}^{t} \in \mathbb{R}^n$ denote the probability vector at time $t$ and
+$p^{(t)}_{A}$ denote the probability of being in state $A$ at time $t$.  
+The status probabilities must add up to $1.0$.
+
+To obtain the status probability distribution after each transition, we simply mutiply the **Transition Matrix** also known as *Adjacency Matrix* by the current probability vector: $$\vec{p}^{(t)} * A = \vec{p}^{(t+1)}$$
+
+<!-- <img src="https://render.githubusercontent.com/render/math?math=e^{i \pi} = -1"> -->
+
+### Get Transition Matrix from Transition System objects
+
+Here, we will show you how to obtain te Transition(Adjacency) Matrix from an onject of class `TransitionSystem`.
+
+We used dataset `hospital_billing` from package eventdata for this study 
+as it contains case status data in column `state`.
+To shorten the status labels, we renamed them to their abbreviated form.
+You can make any changes to the eventlog history of a `TransitionSystem` object directly but you will need to 
+reset the object after that: 
+
+```{r feed_data}
+
+hospital_df = eventdataR::hospital_billing %>% as.data.frame
+status_mapper = c('In progress' = 'IP', 'Closed' = 'CL', 'Released' = 'RE', 'Billed' = 'B', 
+                  'Invoice rejected' = 'IR', 'Billable' = 'BL', 'Empty' = 'E', 'Rejected' = 'RJ',
+                  'Unbillable' = 'UB', 'Check' = 'C')
+mapped_rows = which(hospital_df$state %in% intersect(hospital_df$state, names(status_mapper)))
+hospital_df$state[mapped_rows] = status_mapper[hospital_df$state[mapped_rows]]
+
+tsobj = new('TransitionSystem')
+tsobj$feed.transition_events(hospital_df, 
+                    caseID_col = 'case_id', 
+                    status_col = 'state',
+                    startTime_col = 'timestamp')
+```
+
+Let's have a look at the process map for this Transition System:
+
+```{r pmap_rate, eval=T}
+tsobj$plot.process.map(width = "1000px", height = "800px")
+```
+
+The value of cell in row $i$ and column $j$ of matrix A
+is the probability of the walk at status $i$ selecting
+the edge to status $j$.
+
+You can get the **Transition Matrix** of the process represented by a Transition System  
+by calling method `get.transition_matrix`.
+
+```{r adjacency}
+ tsobj$get.transition_matrix()
+```
+
+## Random Walk Steps
+
+So let's consider one case which is in status **IP (In Progress)** and 
+see how is its status likely to change in the next steps.
+
+The initial probability vector is $\vec{p}^{(0)} = (0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)$ in which 
+the second element associated with status **IP** is $1$.
+The probability distribution after one step is:
+
+```{r step_1}
+A  = tsobj$get.transition_matrix()
+
+p0 = c(0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+p1 = p0 %*% A
+print(p1)
+```
+
+which is the second row of the Transition Matrix associated with status **IP**.  
+As we take further steps, the probability distribution changes. 
+For example to see the probability distribution after 10 steps,
+we multiply the transition matrix 10 times recursively:
+
+```{r step_10}
+p = list(p1)
+for (i in 1:9){
+  p[[i + 1]] = p[[i]] %*% A
+}
+print(p[[10]])
+```
+
+`TransitionSystem` object has a method which computes the random walk probability distributions given the initial state and number of steps:
+
+```{r random_walk, results = 'asis'}
+knitr::kable(tsobj$random_walk(starting_status = 'IP', num_steps = 10))
+```
+
+
+Looking at the probabilities of each status versus the step number, 
+we can see which statuses cases are pulled towards status **END** as the step number increases.
+
+```{r probs_versus_month}
+tsobj$random_walk(starting_status = 'IP', num_steps = 10) %>% 
+  rvisPlot(x = list(step_no = 1:10), y = as.list(rownames(A)), plotter = 'plotly', type = 'scatter', shape = 'line.point')
+
+```
+
+
+## Periodic Transition System
+
+In the previous study, we could see how probability distribution among statuses change as we walk through the process graph. 
+We could see which statuses are most likely met in each stage of the process, however
+this does not give us any view of how the process status changes over time because
+status transitions can happen at any time and durations cases spend at statuses can be very different.
+
+**Periodic Transition Systems**, help us consider time in the modelling of the process.
+If the time interval between transitions are constant, number of steps represents time elapsed and
+we will be able to monitor status probabilities over time.
+
+Periodic Transition System assumes a status transition at the start of a period of time like a day for example.
+As you know we can always have a transition from one status to itself, so at the beginning of each time period (day),
+a transition happens: if the case is still in the same status as yesterday, a same-status-transition event is triggered.
+
+The TransitionSystem object has a method named `to_periodic` which converts itself into a periodic transition system and returns it as a new object.
+We can use that object to generate the transition matrix and observe probability distributions over time.
+Let's see how this works:
+
+
+```{r probs_versus_time}
+
+ts_monthly = tsobj$to_periodic('month')
+
+ts_monthly$random_walk(starting_status = 'IP', num_steps = 10) %>% 
+  rvisPlot(x = list(month_no = 1:10), y = as.list(ts_monthly$get.statuses()), plotter = 'plotly', type = 'scatter', shape = 'line')
+
+
+```
+
+
+Well, you can see how the probabiolity distribution is being pulled towards the END status as time increases.
+
+In the next study, we will learn how to run a simulation to monitor the future of the process.
+
+

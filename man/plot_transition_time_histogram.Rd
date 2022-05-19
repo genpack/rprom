@@ -15,7 +15,7 @@ plot_transition_time_histogram(
 )
 }
 \arguments{
-\item{obj}{object of class \code{TranSys}: The Transition System object from which transition durations are extracted}
+\item{obj}{object of class \code{TransitionSystem}: The Transition System object from which transition durations are extracted}
 
 \item{source}{character: Transition source status. Must be within the source statuses of the transition system.}
 

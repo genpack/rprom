@@ -14,9 +14,9 @@
 #' @import dplyr
 #' @import rutils
 
-# Current Version: 2.0.4
+# Current Version: 2.2.7
 # Issue Date: 08 November 2016
-# Last Issue: 03 August 2021
+# Last Issue: 18 May 2022
 
 # Version     Date                 Action
 # ----------------------------------
@@ -70,6 +70,10 @@
 # 2.1.4       18 March 2022        transys.R updated to version 0.9.4
 # 2.1.5       05 April 2022        tsvis.R updated to version 0.1.6
 # 2.1.6       05 April 2022        tstools.R updated to version 0.1.0
+# 2.1.7       21 April 2022        transys.R updated to version 0.9.5
+# 2.1.8       21 April 2022        prom.R updated to version 0.5.2
+# 2.2.5       03 May 2022          transys.R updated to version 1.0.1
+# 2.2.6       04 May 2022          tstools.R updated to version 0.1.1
+# 2.2.7       18 May 2022          transys.R updated to version 1.0.2
 
-NULL
-#> NULL
+globalVariables(c("new", "type", "caseID", "taskID", "eventTime", "time", "mean", "median"))

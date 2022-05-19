@@ -46,15 +46,15 @@ visualisations:
 library(rutils)
 library(rprom)
 
-tsobj = new('TRANSYS')
+tsobj = new('TransitionSystem')
 class(tsobj)
 ```
 
-    ## [1] "TRANSYS"
+    ## [1] "TransitionSystem"
     ## attr(,"package")
     ## [1] "rprom"
 
-Now, you have built an object of type `TRANSYS` which is a **Transition
+Now, you have built an object of type `TransitionSystem` which is a **Transition
 System**. To feed your **Transition System** with some data, you need a
 dataset in the event-log format. You can get one from package
 [eventdataR](https://cran.r-project.org/web/packages/eventdataR/index.html):

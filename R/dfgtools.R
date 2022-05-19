@@ -151,17 +151,17 @@ dfg.historic.old = function(periodic, features, early_call = T){
 # This function has been stolen from pracma::movavg with a modification: aggregator function can be passed as an argument and it only works for types s and t
 # Types of available moving averages are:
 #   
-#   s for “simple”, it computes the simple moving average. n indicates the number of previous data points used with the current data point when calculating the moving average.
+# s for "simple", it computes the simple moving average. n indicates the number of previous data points used with the current data point when calculating the moving average.
 # 
-# t for “triangular”, it computes the triangular moving average by calculating the first simple moving average with window width of ceil(n+1)/2; then it calculates a second simple moving average on the first moving average with the same window size.
+# t for "triangular", it computes the triangular moving average by calculating the first simple moving average with window width of ceil(n+1)/2; then it calculates a second simple moving average on the first moving average with the same window size.
 # 
-# w for “weighted", it calculates the weighted moving average by supplying weights for each element in the moving window. Here the reduction of weights follows a linear trend.
+# w for "weighted", it calculates the weighted moving average by supplying weights for each element in the moving window. Here the reduction of weights follows a linear trend.
 # 
-# m for “modified", it calculates the modified moving average. The first modified moving average is calculated like a simple moving average. Subsequent values are calculated by adding the new value and subtracting the last average from the resulting sum.
+# m for "modified", it calculates the modified moving average. The first modified moving average is calculated like a simple moving average. Subsequent values are calculated by adding the new value and subtracting the last average from the resulting sum.
 # 
-# e for“exponential", it computes the exponentially weighted moving average. The exponential moving average is a weighted moving average that reduces influences by applying more weight to recent data points () reduction factor 2/(n+1); or
+# e for "exponential", it computes the exponentially weighted moving average. The exponential moving average is a weighted moving average that reduces influences by applying more weight to recent data points () reduction factor 2/(n+1); or
 # 
-# r for“running", this is an exponential moving average with a reduction factor of 1/n [same as the modified average?].
+# r for "running", this is an exponential moving average with a reduction factor of 1/n [same as the modified average?].
 # if n = Inf, it comutes cumulative aggregator
 # for types r, e, m, w, aggregator is not used at all.
 #' @export
@@ -245,8 +245,29 @@ add_features = function(flist = list(), actions){
   return(flist)
 }
 
-# This function generates a package of multiple tables containing dynamic features from a given eventlog
-# evenTime must be of class Date, otherwise, modify accordingly:
+
+# todo: provide a link to the event-log description.
+#' @title Dynamic Feature Generator
+#' @description This function generates a package of multiple tables containing dynamic features 
+#' extracted from a given eventlog.
+#' @param el (data.frame) The input event-log table.
+#' The event-log must have these columns. Column names must match exactly: 
+#' - \code{caseID, eventType, eventTime, attribute, value}
+#' evenTime must be of class Date, otherwise, modify accordingly.
+#' @param period (character) Choose period of time for which is periodic transition system is required.
+#' @param sequential (logical) Should the dynamic features be generated for a sequence of periodic times.
+#' If set to \code{FALSE}, the dynamic features are generated only for the times at which an event has happend.
+#' @param event_funs (character): Which type of features/labels do you want to generate from the occurrence of events?
+#' For each event type in the event-log you can generate:
+#' - \code{count} Count of events happened in the past within each period.
+#' - \code{count_cumsum} Cumulative count of events happened in the past (prior to the current date).
+#' - \code{elapsed} Time elapsed since last occurrence of the event.
+#' - \code{tte} Time remained until the next event occurrence.
+#' - \code{censored} Flag which is TRUE if the event occurrence after the current time has not been observed.
+#' - \code{last} The latest value of the event
+#' - \code{sum} The periodic sum of the values associated with the events
+#' 
+#' @param event_funs (character): which types of features do you want to generate from the occurrence of events?
 #' @export
 dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "sec", "min", "hour"), sequential = F,
                    event_funs = c('count', 'elapsed', 'tte', 'censored'), attr_funs = NULL, var_funs = NULL, horizon = NULL){
@@ -741,9 +762,6 @@ add_swf = function(dfgpack, tables = NULL, aggregators = NULL, win_sizes = NULL,
   
   return(dfgpack)
 }
-
-
-
 
 create_feature_trend = function(dfgpack, table, features, label_event, aggregator = mean, remove_censored = F){
   if(remove_censored){

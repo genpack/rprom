@@ -19,7 +19,8 @@
 # 0.0.7     08 August 2019    Functions markovchain_transition_classifier(), markovchain_transition_time_estimator(), gen_next_events(), gen_transition_times() , gen_transition_times_exp()  modified: argument linkLabel added
 # 0.0.8     09 September 2019 Functions gen_next_events() modified: grouping should be done before generating a random value.
 # 0.0.9     28 March 2022     Functions markovchain_transition_time_estimator() modified: function difftime() with units set as secs used for computing time difference between current_time and transition time.
-# 0.1.0     05 April 2022     Functions Functions gen_next_events() and gen_transition_times() removed and embedded in markovchain_transition_classifier() and markovchain_transition_time_estimator() respectively.
+# 0.1.0     05 April 2022     Functions gen_next_events() and gen_transition_times() removed and embedded in markovchain_transition_classifier() and markovchain_transition_time_estimator() respectively.
+# 0.1.1     04 May 2022       Bug fixed in function markovchain_transition_time_estimator(): normal dist, were generating negative durations
 
 buildProcessMapPackage = function(obj, nodeSize = 'totalEntryFreq', nodeColor = 'totalEntryFreq', linkColor = 'totalFreq', linkWidth = 'totalFreq', linkLabel = NULL, linkLength = NULL, config = NULL){
   # todo: build tooltip, link label
@@ -86,9 +87,9 @@ buildTreeTable = function(traces){
 #' the probability distribution of each transition target.
 #' Transition probability distribution are extracted from given argument \code{histobj}.
 #' This is the default target generator engine for the transition system monte-carlo simulation.
-#' The \code{TranSys} simulator engine calls this function multiple times during the sumulation.
+#' The \code{TransitionSystem} simulator engine calls this function multiple times during the sumulation.
 #'
-#' @param histobj object of class \code{TranSys} containing history of all transitions upto the current time \code{current_time}
+#' @param histobj object of class \code{TransitionSystem} containing history of all transitions upto the current time \code{current_time}
 #' @param input dataframe containing transitions for which a transition end time needs to be generated
 #' @param current_time POSIXct containing the current time. All transition end times will be after the specified current time.
 #' @return dataframe with additional column \code{nextStatus}. 
@@ -111,7 +112,7 @@ markovchain_transition_classifier = function(histobj, input, ...){
 #' MarkovChain transition time generator assumes transition times have normal distribution.
 #' This is the default time generator engine for the transition system monte-carlo simulation.
 #'
-#' @param histobj object of class \code{TranSys} containing history of all transitions upto the current time \code{current_time}
+#' @param histobj object of class \code{TransitionSystem} containing history of all transitions upto the current time \code{current_time}
 #' @param input dataframe containing transitions for which a transition end time needs to be generated
 #' @param current_time POSIXct containing the current time. All transition end times will be after the specified current time.
 #' @return dataframe with additional column \code{pred_duration} in seconds. 
@@ -119,6 +120,9 @@ markovchain_transition_classifier = function(histobj, input, ...){
 markovchain_transition_time_estimator = function(
   histobj, input, current_time,
   family = c('normal', 'exponential', 'exp', 'gaussian', 'norm'), ...){
+  
+  ## todo: add more distributions
+  ## todo: add auto-detect distributiion functionality (future major version realeases)
   
   family %<>% tolower
   family = match.arg(family)
@@ -131,19 +135,16 @@ markovchain_transition_time_estimator = function(
     na2zero
   
   input %<>% left_join(transition_durations, by = c("status", "nextStatus")) %>% na.omit
+  difftime(current_time, input$startTime, units = 'secs') %>% 
+    as.numeric %>% {.[.<0]<-0;.} -> durationLowerBound
   
   if(family %in% c('normal', 'nprm', 'gaussian')){
-    input %>% mutate(pred_duration = gen.random.highpass(N = n(), family = 'normal', mean = meanTime, sd = sdTime, x0 = difftime(current_time, startTime, units = 'secs') %>% as.numeric))
+    input %>% mutate(pred_duration = gen.random.highpass(N = n(), family = 'normal', mean = meanTime, sd = sdTime, x0 = durationLowerBound))
   } else if (family %in% c('exp', 'exponential')){
-    input %>% mutate(pred_duration = gen.random.highpass(N = n(), family = 'exp', rate = 1.0/meanTime, x0 = difftime(current_time, startTime, units = 'secs') %>% as.numeric))
+    input %>% mutate(pred_duration = gen.random.highpass(N = n(), family = 'exp', rate = 1.0/meanTime, x0 = durationLowerBound))
   } else {
     stop('Unknown family %s!' %>% sprintf(family))
   }
 }
 
 
-gen_transition_times_exp = function(input, transition_durations, current_time, ...){
-  input %>% 
-    left_join(transition_durations, by = c("status", "nextStatus")) %>% na.omit %>%
-    mutate(nxtTrTime = startTime + gen.random.highpass(N = n(), family = 'exp', rate = 1.0/meanTime, x0 = as.numeric(current_time - startTime)))
-}

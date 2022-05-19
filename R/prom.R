@@ -4,7 +4,7 @@
 # Author:        Nima Ramezani
 # Email :        nima.ramezani@gmail.com
 # Start Date:    02 May 2018
-# Last Revision: 01 August 2018
+# Last Revision: 21 April 2022
 # Version:       0.5.1
 
 # Version   Date               Action
@@ -31,6 +31,7 @@
 # 0.4.3     17 July 2018       Functions get.agent.ids() and get.activity.ids() modified: Reads from agentHistory and tasklist
 # 0.5.0     31 July 2018       Fundamental change in the structure of the class: contains status, activity, actGroup, agent, team as lists each contain lists named as summary, transys, timeseries, and full
 # 0.5.1     01 August 2018     plot.activity.summary.procTime() and plot.agent.summary.procTime() modified: applies time_unit to total as well
+# 0.5.2     21 April 2022      PROCESS renamed to BusinessProcess
 
 
 # Class Constructor:
@@ -46,8 +47,8 @@
 
 timeUnitCoeff = c(hour = 3600, second = 1, minute = 60, day = 24*3600, week = 7*24*3600, year = 24*3600*365)
 
-#' @exportClass PROCESS
-PROCESS = setRefClass('PROCESS',
+#' @exportClass BusinessProcess
+BusinessProcess = setRefClass('BusinessProcess',
                       fields = list(
                         eventlog      = 'data.frame',
                         tasklist      = 'data.frame',
@@ -227,7 +228,7 @@ PROCESS = setRefClass('PROCESS',
                         },
 
                         get.activity.transys = function(){
-                          sts = new('TRANSYS')
+                          sts = new('TransitionSystem')
                           if(!is.empty(eventlog)){
                             eventlog %>% filter(type == 'completed') %>% sts$feed.eventlog(caseID_col = 'caseID', status_col = 'activity', startTime_col = 'time', add_start = T)
                           } else if(!is.empty(tasklist)){
@@ -237,7 +238,7 @@ PROCESS = setRefClass('PROCESS',
                         },
 
                         get.actGroup.transys = function(){
-                          sts = new('TRANSYS')
+                          sts = new('TransitionSystem')
                           if(!is.empty(eventlog)){
                             eventlog %>% filter(type == 'arrived') %>% sts$feed.eventlog(caseID_col = 'caseID', status_col = 'actGroup', startTime_col = 'time', add_start = T, remove_sst = T)
                           } else if(!is.empty(tasklist)){

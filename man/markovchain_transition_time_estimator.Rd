@@ -17,7 +17,7 @@ markovchain_transition_time_estimator(
 )
 }
 \arguments{
-\item{histobj}{object of class \code{TranSys} containing history of all transitions upto the current time \code{current_time}}
+\item{histobj}{object of class \code{TransitionSystem} containing history of all transitions upto the current time \code{current_time}}
 
 \item{input}{dataframe containing transitions for which a transition end time needs to be generated}
 

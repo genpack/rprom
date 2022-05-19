@@ -1,0 +1,323 @@
+---
+title: "Process Simulation"
+author: "Nima Ramezani"
+date: "30/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
+library(magrittr)
+library(dplyr)
+library(lubridate)
+library(rbig)
+library(rutils)
+library(rvis)
+library(rprom)
+```
+
+## Introduction
+
+In the previous session, we learned how to run a random-walk simulation 
+to estimate probability distribution over various statuses of the transition system.
+
+As you can see, Random-walk simulation does not give any estimation of the future status of an individual case,
+but returns the overall status probabilities for all cases.
+
+In this article, we want to predict the future transitions of cases using process simulation.
+Assume that we are in a certain point in the time-line within the process. Let's call it the **cutpoint time**.
+Some cases have not started yet, some cases are in the middle of their lifetime and some have ended while
+live cases can be at various statuses within the transitiopn system.
+Now, let's stop at the **cutpoint time** and try to predict(estimate) the next transitions for each case.
+The Transition Matrix gives us a probability distribution for the next transition of each case.
+The simulation engine starts with generating a destination for each case as well as a transition time 
+based on the current status of each case.
+This will generate a list of *status transition* events for all live cases. 
+After this step, each case will be in a different status and hence 
+different probabiliy distributions and avergae transition times for the next transition.
+Similarly, another transition is generated for each case and this iterative procedure continues until all the existing cases reach the **END** status.
+
+For those cases started after the cutpoint time, the simulation engine can generate the case arrival events or 
+use the actual case arrivals by keeping **START** transitions for the simulation engine to generate next transitions.
+The former option is a pure prediction as it assumes we have no information of the future arrivals.
+
+We used dataset `hospital_billing` from package eventdata for this study and 
+choose column `activity` as the case status:
+
+```{r feed_data}
+
+hospital_df = eventdataR::hospital_billing %>% as.data.frame
+tsobj = new('TransitionSystem')
+```
+
+## Pre-processing
+
+Before feeding the history of transition events to the object, 
+we need to specify which cases start or end within the timeline window of analysis.
+Most datasets contain a subset of transition events within a window in the time-line.
+They do not have events outside this window. 
+For example, looking at the range of event times, shows the Timeline Window of Observation (TWO) 
+is from `r min(hospital_df$timestamp)` to `r max(hospital_df$timestamp)`.
+We want to specify which cases start or end within the **TWO**.
+
+We build a simple case profile table to see the first and last activity of each case and number of transitions:
+
+```{r case_profile}
+
+case_profile = hospital_df %>% 
+  arrange(case_id, timestamp) %>% 
+  group_by(case_id) %>% 
+  summarise(first_activity = first(activity), 
+            last_activity = last(activity), 
+            num_transitions = length(activity) - 1) %>%
+  ungroup
+  
+knitr::kable(case_profile %>% head(10))
+```
+
+We can see that some cases have only one status(activity) or zero transitions.
+The single activity of those cases is:   
+`r case_profile  %>% filter(num_transitions == 0) %>% pull(first_activity) %>% unique %>% as.character`.
+To remove outliers in the overall end-to-end case process times (durations), 
+we specify these cases as incomplete by specifying that process end falls outside the **TWO**.
+We do this by adding a flag column to the input table which specifies which cases end within the **TWO**.
+This is a simple pre-processing that needs to be done before feeding the data to the object:
+
+
+```{r }
+cases_ending_outside = case_profile  %>% filter(num_transitions == 0) %>% pull(case_id)
+hospital_df$case_ended = TRUE
+hospital_df$case_ended[hospital_df$case_id %in% cases_ending_outside] = FALSE
+```
+
+## Build and observe the object
+
+Now, feed the input dataset to the object:
+
+```{r }
+tsobj$feed.transition_events(hospital_df, 
+                    caseID_col = 'case_id', 
+                    status_col = 'activity',
+                    startTime_col = 'timestamp', 
+                    caseEndFlag_col = 'case_ended')
+```
+
+Let's now filter out single-status cases as well as 1% of the cases with the most uncommon traces
+to get a more readable process map:
+
+```{r }
+tsobj$set.filter.case(complete = T, freq_rate_cut = 0.99)
+tsobj$plot.process.map(config = list(direction = 'left.right'), width = "800px")
+```
+
+## Run Simulation
+
+The time range of the process is from `r tsobj$modelStart` until `r tsobj$modelEnd`.
+We choose some time in the middle like `2013-07-01` and generate transitions from that time for the next two years.
+
+
+Method `run.simulation` runs a simulation from the start date-time that you specify and 
+returns generated transitions in a new event-log:
+
+```{r montecarlo}
+new_transitions_gaussian = tsobj$run.simulation(start_dt = '2013-03-01', target_dt = '2014-03-01', training_time_range = 'simulation')
+knitr::kable(new_transitions_gaussian %>% head(20))
+```
+
+What you get is a list of predicted auto-generated transition events that happen after the simulation start date 
+`2014-07-01`. 
+These events represent one of the many ways that the process could have continued after the specified start date.
+The simulation engine generates two values for each transition:
+
+* **Transition Target**: 
+  is determined based on the probability distribution for transition to the next targets given the current status of a case.
+
+* **Transition Time**: time or duration the cases linger at the source status before migrating to the next status.
+  Transition time is by default generated as a random value with normal distribution with mean and standard deviation 
+  observed from the history of transitions of each type. 
+
+
+<!-- ```{r tag_1} -->
+
+<!-- ``` -->
+
+<!--  However, as you will see later, normal distribution is not always the best distribution for transition times.
+
+<!-- For example, if we observed that  -->
+<!--   transition from status **FIN**	to **RELEASE** has a mean value of `134,000 (sec)` and a standard deviation of    `1,405,000 (sec)`, it generates a random value from a normal distributin with the observed mean and standard deviation. -->
+
+<!-- In simulation, all cases finish the process before the specified end time: -->
+<!-- ```{r}  -->
+<!-- case_profile$last_status %>% unique %>% print -->
+<!-- case_profile$max_time %>% max %>% print -->
+<!-- ``` -->
+
+
+<!-- ```{r}  -->
+<!-- simulated_gaussian$set.filter.case(complete = T, freq_rate_cut = 0.99) -->
+<!-- simulated_gaussian$filter.apply() -->
+<!-- simulated_gaussian$tables$profile.case %>% filter(selected) %>% pull(duration) %>% hist(breaks = 1000) -->
+<!-- ``` -->
+
+But are transition times really follow a normal distribution? 
+Let's look at the distributions of the transition times in the transition system.
+Function `plot_transition_time_histogram` can give you this visualization
+(you will need to install packages `plotly` and `crosstalk`):
+
+```{r tt_histogram}
+if(!require(plotly)){install.packages('plotly')}
+if(!require(crosstalk)){install.packages('crosstalk')}
+
+tsobj %>% plot_transition_time_histogram(remove_outliers = TRUE)
+```
+
+Select a transition from the drop-down menu to see a histogram of the durations.
+You can choose transitions with higher frequencies like *FIN-RELEASE*, *RELEASE-CODE OK* or *CODE OK-BILLED*.
+How many of them look like having a gaussian distribution?
+You can see that most durations have a distribution similar to exponential.
+That's why selecting normal distribution in generating transition times may lead to unrealistic results.
+
+You can generate transition times based on exponential distribution by passing `exp` to argument `family`:
+
+```{r montecarlo_exp}
+new_transitions_exp = tsobj$run.simulation(start_dt = '2013-03-01', target_dt = '2014-03-01', family = 'exp')
+knitr::kable(new_transitions_exp %>% head(20))
+```
+
+Compare the distribution of transition durations of the two generated eventlogs:
+
+
+```{r tt_hist}
+new_transitions_gaussian %>% filter(status == "FIN", nextStatus == "RELEASE") %>% pull(pred_duration) %>% 
+  hist(breaks = 1000, main = "Histogram of Generated durations for FIN-RELEASE \n (family = 'normal')",
+       xlab = "transition time (sec)")
+
+new_transitions_exp %>% filter(status == "FIN", nextStatus == "RELEASE") %>% pull(pred_duration) %>% 
+  hist(breaks = 1000, main = "Histogram of Generated durations for FIN-RELEASE \n (family = 'exp')",
+       xlab = "transition time (sec)")
+```
+
+You can change the time generator engine of the simulator and set it 
+to your custom function.
+By default the simulator uses `function markovchain_transition_time_estimator` 
+to generate predicted transition durations. This function is called multiple times during the simulation.
+The simulator engine passes three inputs to this function:
+
+* `histobj`: an object of class `TransitionSystem`. `histobj` will directly be passed to this function. 
+  During the simulation, the simulator engine changes the current time from `start_dt` to the `target_dt`. 
+  The `histobj` object, contains process history data upto the current time.
+
+* `input`: dataframe containig the list of transition events up to the current time.
+
+* `curent_time`: the value of the current time
+
+The output of this function must be a dataframe with added column `pred_duration` 
+containing the estimated or predicted durations.
+  
+<!-- # todo: use a custom time and nextStatus generator using  sometime-based and history-based features  -->
+<!-- # todo: use a regressor to predict transition time based on a distribution other than gaussian -->
+<!-- # todo: use a periodic TransitionSystem and run simulation without time generator module [Done] --> 
+  
+## Simulation on a Periodic Transition System
+
+Predicting transition durations is tricky and complicated, because you will need to respect the distribution
+of the observed durations in the regressor model or any time generator engine you are using.
+
+Similarly to what we have seen in the **Random Walk Analysis**, using Periodic Transition Systems is
+ a way to avoid complexities of time prediction.
+
+Let's build a Periodic Transition System from the object we have and run a simulation:
+
+```{r build_pts}
+ts_monthly = tsobj$to_periodic('month')
+new_transitions_periodic = ts_monthly$run.simulation(start_dt = '2013-03-01', target_dt = '2014-03-01', training_time_range = 'simulation')
+```
+
+The generated table shows the predicted status of each case on each day. 
+This prediction is of course not expected to be very accurate in the individual level 
+because we have not used any case-specific features, however,
+it provides a good overall estimation of expected process key metrics like
+turnaround (end-to-end) time, meeting Service Level Agreements (SLA) on all or a specific subset of cases and
+daily volume of arrivals to each status (activity in this example).
+
+## Comparing some metrics
+
+Here, we will compare some of the actual and predicted metrics like 
+average end-to-end process time by building a Tranition System object from the event-logs generated by simulation.
+
+```{r}
+# Actual subset of transitions for the duration of simulation:
+actual = tsobj$extract_subset(time_from = '2013-03-01', time_to = '2014-03-01')
+actual$set.filter.case(complete = T)
+
+# simulated object associated with the gaussian generated transitions
+simulated_gaussian = new("TransitionSystem")
+index_started_before = which(new_transitions_gaussian$startTime < '2013-03-01')
+new_transitions_gaussian %>% group_by(caseID) %>%
+  summarise(first_status = first(status), last_status = last(nextStatus),
+            min_time = min(startTime), max_time = max(startTime)) %>% ungroup -> case_profile
+new_transitions_gaussian %>% left_join(case_profile, by = "caseID") %>%
+  mutate(case_started = (first_status == "START"), case_ended = last_status == "END") %>%
+  simulated_gaussian$feed.transition_events(caseStartFlag_col = 'case_started', caseEndFlag_col = 'case_ended')
+
+simulated_gaussian$set.filter.case(complete = T)
+
+# simulated object associated with the exponential generated transitions
+simulated_exp = new("TransitionSystem")
+index_started_before = which(new_transitions_exp$startTime < '2013-03-01')
+new_transitions_exp %>% group_by(caseID) %>%
+  summarise(first_status = first(status), last_status = last(nextStatus),
+            min_time = min(startTime), max_time = max(startTime)) %>% ungroup -> case_profile
+new_transitions_exp %>% left_join(case_profile, by = "caseID") %>%
+  mutate(case_started = (first_status == "START"), case_ended = last_status == "END") %>%
+  simulated_exp$feed.transition_events(caseStartFlag_col = 'case_started', caseEndFlag_col = 'case_ended')
+
+simulated_exp$set.filter.case(complete = T)
+
+# simulated object associated with the periodic generated transitions
+simulated_periodic = new('TransitionSystem')
+
+# Cases that ended within the simulation time range"
+ended_cases = new_transitions_periodic[new_transitions_periodic$nextStatus == "END", "caseID", drop = T] %>% unique
+new_transitions_periodic$case_ended = new_transitions_periodic$caseID %in% ended_cases
+
+simulated_periodic$feed.transition_events(new_transitions_periodic, remove_sst = T, caseStartTags = "START", caseEndFlag_col = "case_ended")
+
+simulated_periodic$set.filter.case(complete = T)
+```
+
+
+```{r metrics}
+att_actual = "Average Turnaround Time (Actual): %s" %>% 
+  sprintf(actual$get.metric('avgTT', time_unit = 'day'))
+
+att_gaussian = "Average Turnaround Time (Simulated Gaussian): %s" %>% 
+  sprintf(simulated_gaussian$get.metric('avgTT', time_unit = 'day'))
+
+att_exp = "Average Turnaround Time (Simulated Exponential): %s" %>% 
+  sprintf(simulated_exp$get.metric('avgTT', time_unit = 'day'))
+
+att_periodic = "Average Turnaround Time (Simulated Periodic): %s" %>% 
+  sprintf(simulated_periodic$get.metric('avgTT', time_unit = 'day'))
+
+
+ant_actual = "Average Number of Transitions (Actual): %s" %>% 
+  sprintf(actual$get.metric('avgTrans'))
+
+ant_gaussian = "Average Number of Transitions (Simulated Gaussian): %s" %>% 
+  sprintf(simulated_gaussian$get.metric('avgTrans'))
+
+ant_exp = "Average Number of Transitions (Simulated Exponential): %s" %>% 
+  sprintf(simulated_exp$get.metric('avgTrans'))
+
+ant_periodic = "Average Number of Transitions (Simulated Periodic): %s" %>% 
+  sprintf(simulated_periodic$get.metric('avgTrans'))
+
+ cat(att_actual, "\n", att_gaussian, "\n", att_exp, "\n", att_periodic, "\n", "\n",
+     ant_actual, "\n", ant_gaussian, "\n", ant_exp, "\n", ant_periodic, "\n")
+ 
+```
+
+## Next Article
+
+In the next study, we will learn how to generate features and label to build training data for predicting the next transition status.
