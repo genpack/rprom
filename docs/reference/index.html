@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">rprom</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.1.6</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.7</span>
       </span>
     </div>
 
@@ -32,7 +32,7 @@
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu"><li>
-      <a href="../articles/monte_carlo_simulation.html">Monte-Carlo Simulation</a>
+      <a href="../articles/process_simulation.html">Process Simulation</a>
     </li>
     <li>
       <a href="../articles/process_visualisation.html">Process Visualisation</a>
@@ -58,31 +58,29 @@
           <p class="section-desc"></p>
         </th>
       </tr></tbody><tbody><tr><td>
-          <p><code><a href="SURVIVAL-class.html">SURVIVAL-class</a></code> </p>
+          <p><code><a href="Survival-class.html">Survival-class</a></code> </p>
         </td>
-        <td><p>SURVIVAL: A reference class for modelling survival of cases in a process model.</p></td>
+        <td><p>Reference class for modelling survival in a process</p></td>
       </tr><tr><td>
-          <p><code><a href="TRANSYS-class.html">TRANSYS-class</a></code> </p>
+          <p><code><a href="TransitionSystem-class.html">TransitionSystem-class</a></code> </p>
         </td>
-        <td><p>TRANSYS: A reference class for modelling Transition Systems</p></td>
+        <td><p>TransitionSystem: A reference class for modelling Transition Systems</p></td>
+      </tr><tr><td>
+          <p><code><a href="dfg_pack.html">dfg_pack()</a></code> </p>
+        </td>
+        <td><p>Dynamic Feature Generator</p></td>
+      </tr><tr><td>
+          <p><code><a href="el2cp.html">el2cp()</a></code> </p>
+        </td>
+        <td><p>Eventlog to Case-Profile Convertor</p></td>
       </tr><tr><td>
           <p><code><a href="markovchain_transition_classifier.html">markovchain_transition_classifier()</a></code> </p>
         </td>
-        <td><p>Generates predicted transition targets based on markov chain random walk simulation. 
-This function is a simple transition probability model based on memory-less markov-chain model.
-It randomly picks destination for each given transition respecting 
-the probability distribution of each transition target.
-Transition probability distribution are extracted from given argument <code>histobj</code>.
-This is the default target generator engine for the transition system monte-carlo simulation.
-The <code>TranSys</code> simulator engine calls this function multiple times during the sumulation.</p></td>
+        <td><p>Target Generator for Markov-chain Random Walk Simulation</p></td>
       </tr><tr><td>
           <p><code><a href="markovchain_transition_time_estimator.html">markovchain_transition_time_estimator()</a></code> </p>
         </td>
-        <td><p>Generates predicted transition times based on marcovchanin random walk simulation. 
-It generates random transition time (status durations) based on the average observed transition times
-(given by argument <code>histobj</code>). 
-MarkovChain transition time generator assumes transition times have normal distribution.
-This is the default time generator engine for the transition system monte-carlo simulation.</p></td>
+        <td><p>Transition Time Generator for Markov-chanin Random Walk Simulation</p></td>
       </tr><tr><td>
           <p><code><a href="plot_process_tree.html">plot_process_tree()</a></code> </p>
         </td>

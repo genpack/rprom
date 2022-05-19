@@ -13,7 +13,34 @@
     <loc>https://genpack.github.io/rprom/articles/monte_carlo_simulation.html</loc>
   </url>
   <url>
+    <loc>https://genpack.github.io/rprom/articles/process_simulation.html</loc>
+  </url>
+  <url>
     <loc>https://genpack.github.io/rprom/articles/process_visualisation.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/articles/process_visualisation_files/d3-tip-0.6.7/examples/arrow-styles.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/articles/process_visualisation_files/d3-tip-0.6.7/examples/bars.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/articles/process_visualisation_files/d3-tip-0.6.7/examples/bulk-attr-style.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/articles/process_visualisation_files/d3-tip-0.6.7/examples/circles.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/articles/process_visualisation_files/d3-tip-0.6.7/examples/css-transitions.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/articles/process_visualisation_files/d3-tip-0.6.7/examples/explicit-target.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/articles/process_visualisation_files/d3-tip-0.6.7/examples/performance.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/articles/process_visualisation_files/d3-tip-0.6.7/examples/requirejs.html</loc>
   </url>
   <url>
     <loc>https://genpack.github.io/rprom/articles/random_walk.html</loc>
@@ -28,7 +55,13 @@
     <loc>https://genpack.github.io/rprom/reference/SURVIVAL-class.html</loc>
   </url>
   <url>
-    <loc>https://genpack.github.io/rprom/reference/TRANSYS-class.html</loc>
+    <loc>https://genpack.github.io/rprom/reference/TransitionSystem-class.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/reference/dfg_pack.html</loc>
+  </url>
+  <url>
+    <loc>https://genpack.github.io/rprom/reference/el2cp.html</loc>
   </url>
   <url>
     <loc>https://genpack.github.io/rprom/reference/index.html</loc>
