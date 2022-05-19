@@ -81,8 +81,8 @@ buildTreeTable = function(traces){
 }
 
 
-#' Generates predicted transition targets based on markov chain random walk simulation. 
-#' This function is a simple transition probability model based on memory-less markov-chain model.
+#' @title Target Generator for Markov-chain Random Walk Simulation 
+#' @description This function is a simple transition probability model based on memory-less markov-chain model.
 #' It randomly picks destination for each given transition respecting 
 #' the probability distribution of each transition target.
 #' Transition probability distribution are extracted from given argument \code{histobj}.
@@ -106,8 +106,9 @@ markovchain_transition_classifier = function(histobj, input, ...){
 }
 
 
-#' Generates predicted transition times based on marcovchanin random walk simulation. 
-#' It generates random transition time (status durations) based on the average observed transition times
+#' @title Transition Time Generator for Markov-chanin Random Walk Simulation 
+#' @description This function generates random transition time (status durations) 
+#' based on the average observed transition times
 #' (given by argument \code{histobj}). 
 #' MarkovChain transition time generator assumes transition times have normal distribution.
 #' This is the default time generator engine for the transition system monte-carlo simulation.

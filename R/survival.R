@@ -18,7 +18,7 @@
 # 0.0.3     26 March 2019      case profile is now directly generated from eventlog for certain aggregators
 
 
-#' @title SURVIVAL: A reference class for modelling survival of cases in a process model.
+#' @title Reference class for modelling survival in a process
 #' @description Reference class containing some properties and methods required for survival modelling.
 #'
 #' @field data list A list of tables. Table names can be: el (event log), cel (current eventlog), cp (case profile), ccp (current case profile), 
@@ -27,8 +27,8 @@
 #' @field report list A list of tables containing analysis reports.
 #' @field settings list A list of class settings. Has following parameters: caseID_col, eventTime_col, eventType_col, attribute_col, value_col,
 #' caseStart_tag, caseEnd_tag, age_varname, deathReason_varname, cp_attributes, normalize_hazard, cp_aggregators, cp_binners, cp_categoricals, cp_attributes
-#' @export SURVIVAL
-SURVIVAL = setRefClass('SURVIVAL',
+#' @export Survival
+Survival = setRefClass('Survival',
                        fields = list(data = 'list', report = 'list', settings = 'list'),
                        methods = list(
                          initialize = function(config = list(), ...){

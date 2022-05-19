@@ -2,11 +2,7 @@
 % Please edit documentation in R/tstools.R
 \name{markovchain_transition_time_estimator}
 \alias{markovchain_transition_time_estimator}
-\title{Generates predicted transition times based on marcovchanin random walk simulation. 
-It generates random transition time (status durations) based on the average observed transition times
-(given by argument \code{histobj}). 
-MarkovChain transition time generator assumes transition times have normal distribution.
-This is the default time generator engine for the transition system monte-carlo simulation.}
+\title{Transition Time Generator for Markov-chanin Random Walk Simulation}
 \usage{
 markovchain_transition_time_estimator(
   histobj,
@@ -27,8 +23,8 @@ markovchain_transition_time_estimator(
 dataframe with additional column \code{pred_duration} in seconds.
 }
 \description{
-Generates predicted transition times based on marcovchanin random walk simulation. 
-It generates random transition time (status durations) based on the average observed transition times
+This function generates random transition time (status durations) 
+based on the average observed transition times
 (given by argument \code{histobj}). 
 MarkovChain transition time generator assumes transition times have normal distribution.
 This is the default time generator engine for the transition system monte-carlo simulation.

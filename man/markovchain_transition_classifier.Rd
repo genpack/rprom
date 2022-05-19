@@ -2,13 +2,7 @@
 % Please edit documentation in R/tstools.R
 \name{markovchain_transition_classifier}
 \alias{markovchain_transition_classifier}
-\title{Generates predicted transition targets based on markov chain random walk simulation. 
-This function is a simple transition probability model based on memory-less markov-chain model.
-It randomly picks destination for each given transition respecting 
-the probability distribution of each transition target.
-Transition probability distribution are extracted from given argument \code{histobj}.
-This is the default target generator engine for the transition system monte-carlo simulation.
-The \code{TransitionSystem} simulator engine calls this function multiple times during the sumulation.}
+\title{Target Generator for Markov-chain Random Walk Simulation}
 \usage{
 markovchain_transition_classifier(histobj, input, ...)
 }
@@ -23,7 +17,6 @@ markovchain_transition_classifier(histobj, input, ...)
 dataframe with additional column \code{nextStatus}.
 }
 \description{
-Generates predicted transition targets based on markov chain random walk simulation. 
 This function is a simple transition probability model based on memory-less markov-chain model.
 It randomly picks destination for each given transition respecting 
 the probability distribution of each transition target.
