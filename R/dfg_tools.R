@@ -7,6 +7,15 @@
 # Example:
 # transactionReported_amount_SUMG0SUML5
 
+last.narm = function(x){last(x[!is.na(x)])}
+
+AGGREGATOR_FUNCTION = list(sum = sum, avg = mean, gavg = rutils::geomean, eavg = rutils::expmean, prd = prod, med = median, sdv = sd, var = var, max = max, min = min, last = last, count = length)
+
+CUMULATIVE_AGGREGATOR_FUNCTION = list(last = last.narm,
+                      sum = cumsum, max = cummax, min = cummin, avg = dplyr::cummean,
+                      med = cumstats::cummedian, var = cumstats::cumvar,
+                      gavg = cumstats::cumgmean, count = seq_along)
+
 # Tools to map event-log into training dataset for machine learning:
 # MLMpaaer.periodic converts an eventlog into a mix of multivariate time series.  Each caseID, will have a time series for itself.
 dfg.periodic = function(eventlog, features, period = c('hour', 'day', 'week', 'month', 'year'), start = NULL, end = NULL){
@@ -148,6 +157,8 @@ dfg.historic.old = function(periodic, features, early_call = T){
   return(periodic[, colnames(periodic) %>% setdiff(drops)])
 }
 
+
+
 # This function has been stolen from pracma::movavg with a modification: aggregator function can be passed as an argument and it only works for types s and t
 # Types of available moving averages are:
 #   
@@ -171,7 +182,7 @@ moving_aggregator = function (x, n = Inf, type = c("s", "t", "w", "m", "e", "r")
   if (length(n) != 1 || ceiling(n != floor(n)) || n <= 1) 
     stop("Window length 'n' must be a single integer greater 1.")
   nx <- length(x)
-  n  <- min(n, nx - 1)
+  n  <- min(n, nx - 1) %>% max(1)
   y  <- numeric(nx)
   if (type == "s") {
     for (k in 1:(n - 1)) y[k] <- aggregator(x[1:k])
@@ -205,9 +216,9 @@ moving_aggregator = function (x, n = Inf, type = c("s", "t", "w", "m", "e", "r")
 }
 
 #' @export
-dfg.historic = function(periodic, features, caseID_col = 'caseID', eventTime_col = 'eventTime'){
+dfg.historic.sliding = function(periodic, features, caseID_col = 'caseID', eventTime_col = 'eventTime'){
   drops = character()
-  periodic %<>% mutate(.row = sequence(nrow(.))) %>% arrange_(caseID_col, eventTime_col)
+  periodic %<>% mutate(.row = sequence(nrow(.))) %>% arrange_(sym(caseID_col), sym(eventTime_col))
   
   #todo: use parallel computing  
   for (ft in features){
@@ -235,7 +246,7 @@ dfg.labeler = function(periodic, features){
   return(periodic[, colnames(periodic) %>% setdiff(drops)])
 }
 
-# This function helps you build list of features to pass to argument features of dfg.historic and dfg.labeler:
+# This function helps you build list of features to pass to argument 'features' of dfg.historic.sliding and dfg.labeler:
 add_features = function(flist = list(), actions){
   for (act in actions){
     for (ft in act$features){
@@ -266,11 +277,15 @@ add_features = function(flist = list(), actions){
 #' - \code{censored} Flag which is TRUE if the event occurrence after the current time has not been observed.
 #' - \code{last} The latest value of the event
 #' - \code{sum} The periodic sum of the values associated with the events
-#' 
+#' - \code{cumsum} The cumulative sum of the values associated with the events
+#' - \code{max} The periodic maximum of the values associated with the events
+#' - \code{cummax} The maximum of the values associated with the events since the start of observation
+#' - \code{min} The periodic minimum of the values associated with the events
+#' - \code{cummin} The minimum of the values associated with the events since the start of observation
 #' @param event_funs (character): which types of features do you want to generate from the occurrence of events?
 #' @export
-dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "sec", "min", "hour"), sequential = F,
-                   event_funs = c('count', 'elapsed', 'tte', 'censored'), attr_funs = NULL, var_funs = NULL, horizon = NULL){
+generate_dynamic_features_pack = function(el, period = c('day', "week", "month", "quarter", "year", "sec", "min", "hour"), sequential = F,
+                   event_funs = c('count', 'elapsed', 'tte', 'censored'), attr_funs = NULL, var_funs = NULL, target_horizon = NULL){
   cat('\n', "Verifications started ... ")
   period = match.arg(period)
   
@@ -289,7 +304,7 @@ dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "s
   warnif(length(wna) > 0, paste(length(wna), 'attributes', "missing replaced by 'occurrence'"))
   if(length(wna) > 0){el$attribute[wna] <- 'occurrence'}
   
-  el$detailTime = el$eventTime
+  el$timestamp = el$eventTime
   
   cat("Done!", '\n')
   
@@ -347,8 +362,8 @@ dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "s
     purrr::map_dfr(names(a), .f = function(v) {data.frame(caseID = v, eventTime = a[[v]])}) -> bb
 
     bb %>% anti_join(el %>% select(caseID, eventTime), by = c('caseID', 'eventTime')) %>%
-      mutate(eventType = 'clock', attribute = 'counter', value = 1, detailTime = eventTime - 1) %>%
-      select(caseID, eventType, eventTime, attribute, value, detailTime) %>%
+      mutate(eventType = 'clock', attribute = 'counter', value = 1, timestamp = eventTime - 1) %>%
+      select(caseID, eventType, eventTime, attribute, value, timestamp) %>%
       rbind(el) -> el
     
     cat("Done!", '\n')
@@ -357,6 +372,7 @@ dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "s
   if(length(event_funs) > 0){
     cat('\n', "Creating event count table ... ")
     el %>%
+      # distinct(eventID, .keep_all = T) %>% 
       reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'value', fun.aggregate = length) %>%
       arrange(caseID, eventTime) -> out$event_count
 
@@ -375,8 +391,8 @@ dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "s
     # out$event_time = out$event_count
     # tstr = as.character(out$event_time[, 'eventTime'])
     # out$event_time[, cols] %<>% as.matrix %>% apply(2, function(v) ifelse(v > 0, tstr, NA))
-    el %>% mutate(detailTime = as.character(detailTime)) %>%
-      reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'detailTime', fun.aggregate = dplyr::first) %>%
+    el %>% mutate(timestamp = as.character(timestamp)) %>%
+      reshape2::dcast(caseID + eventTime ~ eventType, value.var = 'timestamp', fun.aggregate = dplyr::first) %>%
       arrange(caseID, eventTime) -> out$event_time
     cat("Done!", '\n')
   }
@@ -385,10 +401,10 @@ dfg_pack = function(el, period = c('day', "week", "month", "quarter", "year", "s
   if('elapsed' %in% event_funs){
     cat('\n', "Creating elapsed table ... ")
     
-    out$event_elapsed <- out$event_time %>% column.feed.forward(col = cols, id_col = 'caseID')
+    out$event_time_elapsed <- out$event_time %>% column.feed.forward(col = cols, id_col = 'caseID')
 
     for(i in cols){
-      out$event_elapsed[, i] = as.numeric(out$event_elapsed$eventTime - as.Date(out$event_elapsed[, i]))
+      out$event_time_elapsed[, i] = as.numeric(out$event_time_elapsed$eventTime - as.Date(out$event_time_elapsed[, i]))
     }
     cat("Done!", '\n')
   }
@@ -605,11 +621,12 @@ add_event_labels = function(dfgpack, horizon){
   # event_label[, cols] <- as.numeric((dfgpack$event_censored[, cols] == 0) & (dfgpack$event_tte[, cols] < horizon) & (dfgpack$event_tte[, cols] > 0))
   event_label[, cols] <- as.numeric((dfgpack$event_censored[, cols] == 0) & (dfgpack$event_tte[, cols] < horizon))
   dfgpack$event_label = event_label
+  names(dfgpack$event_label) %<>% stringr::str_replace(pattern = '_tte', '_label') 
   return(dfgpack)
 }
 
 
-# The event-based features in the ML mapper, are for atomic events.
+# The event-based dynamic features, are generated for atomic events.
 # For an interval event-type with start and stop, use this mapper.
 # This function works only for one type of interval event which has start and end.
 # so start and end of one event must have identical event IDs.
@@ -756,7 +773,7 @@ add_swf = function(dfgpack, tables = NULL, aggregators = NULL, win_sizes = NULL,
         }
       }
     }
-    dfgpack[[tn]] %<>% dfg.historic(features)
+    dfgpack[[tn]] %<>% dfg.historic.sliding(features)
     cat('Done!', '\n')
   }
   
@@ -781,11 +798,12 @@ create_feature_trend = function(dfgpack, table, features, label_event, aggregato
     arrange(eventTime)
 }
 
-dfgpack.remove_clock.events = function(pack){
+dfg_pack.remove_clock_events = function(pack){
   for(tn in names(pack)){
     cns = colnames(pack[[tn]])
     pack[[tn]] <- pack[[tn]][cns %-% charFilter(cns, 'clock')]
   }
   return(pack)
 }
+
 

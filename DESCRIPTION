@@ -1,26 +1,28 @@
 Package: rprom
 Type: Package
 Title: This package will be a complete toolbox for process mining, management, prediction, simulation and optimization
-Version: 2.2.7
-Date: 18 May 2022
+Version: 2.2.8
+Date: 14 June 2022
 Author: Nima Ramezani
 Maintainer: Nima Ramezani <nima.ramezani@gmail.com>
 Description: The package is still under construction. Documentation incomplete! Use at your own risk!
 License: Artistic-2.0
 LazyData: TRUE
-RoxygenNote: 7.1.2
-Imports: dplyr, rutils
+RoxygenNote: 7.2.0
+Imports: magrittr, reshape2, dplyr, rutils
 Collate:
-    'dfgtools.R'
+    'dfg.R'
+    'dfg_tools.R'
     'elsyd.R'
     'prom.R'
-    'promtools.R'
-    'promvis.R'
+    'prom_tools.R'
+    'prom_vis.R'
     'prosim.R'
-    'tsvis.R'
-    'tstools.R'
+    'ts_vis.R'
+    'ts_tools.R'
     'transys.R'
     'rprom.R'
+    'sample_generator_configs.R'
+    'surv_tools.R'
     'survival.R'
-    'survtools.R'
 URL: https://genpack.github.io/rprom

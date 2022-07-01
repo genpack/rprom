@@ -54,7 +54,7 @@ getHazard = function(data, tenure_col, status_col, count_col, normalize_hazard =
 
   tenure_col %>% paste(status_col, sep = '~') %>% as.formula -> frm
   data %>% pull(count_col) %>% sum -> N
-  data %<>% reshape2::dcast(frm, value.var = count_col, fun.aggregate = sum) %>% arrange_(tenure_col)
+  data %<>% reshape2::dcast(frm, value.var = count_col, fun.aggregate = sum) %>% arrange(sym(tenure_col))
   if(is.null(data$died)){data$died = 0}
   if(is.null(data$censored)){data$censored = 0}
   data %>% calHazard(normalize_hazard)

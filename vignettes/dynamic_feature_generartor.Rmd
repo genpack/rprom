@@ -1,0 +1,244 @@
+---
+title: "Dynamic Feature Generator"
+author: "Nima Ramezani"
+date: "20/05/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(magrittr)
+library(dplyr)
+```
+
+## Introduction
+
+In the previous lessons, we saw that how simulations can generate estimated events 
+based on the observed patterns of event sequence.
+
+However, both studies in the two articles `random_walk` and `process_simulaiton` use a 
+`Markov-Chain` model which is *memory-less*. 
+This means that the probabilities of the next transitions purely depend on the current status of the case
+and not the historic data like the path each case has gone through in the process.
+
+To predict future events more accurately, 
+it is good to create features that can represent more information from case history.
+
+In this article, we will show `rprom` can be used to build lots of dynamic periodic and historical case features.
+
+## Dynamic features
+
+What is a dynamic feature and what is the difference between a dynamic feature and a regular feature?
+
+A simple answer to this question is that
+the main difference of a dynamic feature to a regular feature is that dynamic features are time-dependent.
+They represent the status of entities (cases) over time.
+So we can say time-series data are represented by dynamic features because the value of one feature can vary over time.
+
+As you know, in superviswed Machine Learning, we train predictive models (like *classifiers* or *regressors*)
+with some training dataset. 
+Each row in the training dataset represents multiples features (attributes) of an entity. 
+For example, when you build a regression model to predict the estimated price of a house,
+you will use house features like number of bedrooms, land size, number of parkings, ... 
+with the house price being the *label* or the *target feature*.
+
+Each row in the training set represent one house which is the *entity* in this example.
+That is what we define as the *granularity of the training dataset*.
+
+In time-series data represented by dynamic features, the granularity of the dataset is per case- per time
+meaning that each row in the traioning dataset represents the status of a case at various points in time.
+
+In the house price example, 
+although the houses could have been sold at different times and the date on which the house was sold could be used as a feature as well, it's not defined as a time-series data and features are not dynamic 
+because you have only one value of each features for each case.
+
+Now, consider a process data:
+For each case, various events happen at different times. 
+These events, change the status of cases over time. 
+
+<!-- TODO: add more text here -->
+## Event-log:
+
+All source tables and time-series data-sets should be eventually mapped and presented 
+as event-log before dynamic features can be extracted from them.
+In other words, every piece of information in a time-series data-set can be represented in the event-log.
+
+So what does an standard event-log format look like?
+
+event-log is a simple log of events. Every important or considerable event happening in the life time of a case (We already know the definition of Case in a process) should be logged and stored in the event-log.
+
+An event-log dataset need to have the following important columns:
+
+* `eventID`:
+A unique identifier for each instance of event. For example when a customer calls, an event of type "Customer Call" is triggered and it gets an ID, if that customer calls again, that triggers another event of type "Customer Called" but with another ID. 
+
+* `caseID`:
+All events (regardless of type) related to the same case, get the same case ID. Case ID specifies which customer or loan, the event is related to.
+
+* `eventTime` (Time Stamp):
+The time of event occurrence. Should be in a date-time format which contains both date of event and time of event to the level of seconds.
+
+* `eventType`:
+A categorical (drop-down) value specifying type of event. Types of events captured depend on the project and it's scope. For Sticky, event types are written here.
+
+* `attribute` (Variable):
+We may need to capture multiple values associated with an event. Column "Variable" should contain names of various parameters or attributes of an event. For example, when a call arrives, different values are captured like reason of call, duration of call, waiting time, operator comments, ... . To maintain width of the event log table, we use one row for each variable/parameter of an event. All variables associated with an event should have the same Event IDs and of course, same Case IDs. If no value is captured for the event, we can use a variable named 'Occurrence' and set its value to 1. This, only logs occurrence of the event.
+
+* `value`: Contains value of the variable/attribute associated with an event.
+
+An example of an event-log is shown below:
+
+
+| eventID     | caseID        | eventTime            | eventType                         | attribute | value |
+|:----------- |:--------------|:---------------------|:----------------------------------|:----------|:------|
+| EVNT2678765 | CSHLP1345676	| 01/12/2017 13:45:18	 | CustomerRequest-RateChange-Lodged | Rate | 3.92 |
+| EVNT2678765 | CSHLP1345676	| 01/12/2017 13:45:18	 | CustomerRequest-RateChange-Lodged | DesiredRate | 3.76 |
+| EVNT2645253 | CSHLP1345676	| 07/12/2017 11:15:29	 | CustomerRequest-RateChange-Approved | Occurred | 1 |
+| EVNT1646259 | CSHLP1345681	| 03/11/2017 9:18:11	 | CustomerCalled | Duration | 423.56 |
+| EVNT1646259 | CSHLP1345681	| 03/11/2017 9:18:11	 | CustomerCalled	| Reason | Enquiry |
+| EVNT1646259 | CSHLP1345681	| 03/11/2017 9:18:11	 | CustomerCalled	| Sentiment | -4 |
+| EVNT1646259 | CSHLP1345681	| 03/11/2017 9:18:11	 | CustomerCalled	| WaitingTime | 46 |
+| EVNT8723681 | CSHLP1345698	| 23/11/2017 12:35:12	 | CustomerRequest-TopupLoan-Lodged	 | Reason	 | Renovation |
+| EVNT8723681 | CSHLP1345698	| 23/11/2017 12:35:12	 | CustomerRequest-TopupLoan-Lodged	 | Amount	 | $75,000 |
+| EVNT4982461 | CSHLP1345698	| 02/12/2017 12:35:12	 | CustomerRequest-TopupLoan-Rejected	 | Occurance	 |1 |
+| EVNT8645209 | CSHLP1345676	| 1/13/2018  21:13:58	 | CustomerLogin-StatementPrinted	 | Occurance	 |1 |
+| ...|...|...|...|...|...|...|...|
+
+## Event Mapper
+An event-mapper is a module that maps a number of input source tables into an event-log with the above mentioned scheme.
+
+
+In this example, we are using the Dynamic Feature Generator **(DFG)** engine to generate some dynamic features from a single event-log data.
+
+For this article, we used dataset `traffic_fines` from package `eventdataR` which contains not only a few attributes for the events. 
+
+This is a small example to show how event-logs are modified/generated to become a proper input for the **DFG** module,
+and how dynamic features are named, configured and generated.
+In most cases, data sources can be a pack of multiple tables with different formats and schemes connected through a number of entity IDs based on a complex data model.
+However, here we only used one single source table for simplicity.
+
+Let's have a look at the header of the source dataset table:
+
+```{r c1}
+traffic_fines_df = eventdataR::traffic_fines %>% as.data.frame
+
+traffic_fines_df %>% head %>% knitr::kable()
+```
+
+## Pre-processing and event mappers:
+
+Multiple event types can be considered when one looks at the source dataset.
+
+For example, looking at the 3rd row of the table header above, 
+you can see that *Create Fine* activity is completed for case with ID `A100` 
+on `2006-08-02`. 
+`amount` is an attribute for this event which has the numeric value of `350`.
+
+So we can add a row in the eventlog with an event of type `CreateFineCompleted` triggered for caseID `A100`
+with an attribute named as `amount` and a value which is `350`:
+
+| eventID     | caseID        | eventTime            | eventType                         | attribute | value |
+|:----------- |:--------------|:---------------------|:----------------------------------|:----------|:------|
+| `A3` | `A100`	| `2006-08-02`	 | `CreateFineCompleted` | `amount` | `350` |
+
+We can also see that the vehicle class for this fine is `A`. 
+This information can be represented by a second attribute for event `CreateFineCompleted`.
+We can add another row to the event-log:
+
+| eventID     | caseID        | eventTime            | eventType                         | attribute | value |
+|:----------- |:--------------|:---------------------|:----------------------------------|:----------|:------|
+| `A3` | `A100`	| `2006-08-02`	 | `CreateFineCompleted` | `vehicleClass` | `1` |
+
+The `vehicleClass` is a label-encoded categorical variable. 
+We need to encode categorical variables to 
+have all values in the `value` column numeric.
+
+Here, there are three unique values for vehicle class: A, C and M, encoded as 1, 2, 3.
+
+What other information can we get from this row?
+
+Well, you can see that resource `561` has worked on this activity.
+We do not have a start time for an activity in this dataset, 
+so we use the completion time as the time when the resource touched the case (did some work on it).
+We can consider resource as another attribute of event `A3`, but we can also 
+define a different event type which is triggered at the same time as the `CreateFineCompleted`. 
+As you will see later, the second option, can give us features not extractable from the first one.
+In fact, in most cases when attributes are categorical variables, it is better to 
+define a different event type for each category.
+
+Another row could be like this:
+
+| eventID     | caseID        | eventTime            | eventType                         | attribute | value |
+|:----------- |:--------------|:---------------------|:----------------------------------|:----------|:------|
+| `R3` | `A100`	| `2006-08-02`	 | `R561_Touched` | `Occurrence` | `1` |
+
+We can see the `eventID` is different for this one as the event type is different, although all these rows refer to the same event.
+
+The follwing R script does all the event mappings for us: 
+
+```{r event_mapper}
+
+## Events associated with activities:
+traffic_fines_df %>% 
+  mutate(eventType = activity %>% as.character %>% 
+           stringr::str_replace_all(pattern = "\\s", replacement = "") %>% 
+           paste0("Completed"),
+         occurrence = as.numeric(is.na(amount) & is.na(expense) & is.na(paymentamount) & is.na(totalpaymentamount)),
+         eventID = paste0("A", activity_instance_id)) %>%
+  rename(caseID = case_id, eventTime = timestamp) %>% 
+  reshape2::melt(id.vars = c('eventID', 'caseID', 'eventType', 'eventTime'),
+               measure.vars = c('amount', 'expense', 'paymentamount', 'totalpaymentamount', 'occurrence')) %>% 
+  filter(!is.na(value), (variable != 'occurrence' | value == 1)) -> el
+
+## Events associated with resources:
+
+traffic_fines_df %>%
+  filter(!is.na(resource)) %>%
+  mutate(eventID = paste0('R', sequence(nrow(.))), eventType = paste0('TouchedBy', resource), variable = 'occurrence', value = 1) %>%
+  select(eventID, caseID = case_id, eventType, eventTime = timestamp, variable, value) -> el_r
+
+el = rbind(el, el_r) %>% arrange(caseID, eventTime)
+
+```
+
+the output header will look like this:
+
+| eventID | caseID | eventType | eventTime | variable | value | 
+|:---|:------|:--------------------------------|:----------|:------------------|:----| 
+| A1 | A1 | CreateFineCompleted | 2006-07-24 | amount | 350 | 
+| A1 | A1 | CreateFineCompleted | 2006-07-24 | totalpaymentamount | 0.0 | 
+| R1 | A1 | TouchedBy561 | 2006-07-24 | occurrence | 1 | 
+| A2 | A1 | SendFineCompleted | 2006-12-05 | expense | 110 | 
+| A3 | A100 | CreateFineCompleted | 2006-08-02 | amount | 350 | 
+| A3 | A100 | CreateFineCompleted | 2006-08-02 | totalpaymentamount | 0.0 | 
+| R2 | A100 | TouchedBy561 | 2006-08-02 | occurrence | 1 | 
+| A4 | A100 | SendFineCompleted | 2006-12-12 | expense | 110 | 
+| A5 | A100 | InsertFineNotificationCompleted | 2007-01-15 | occurrence | 1 | 
+| A6 | A100 | AddpenaltyCompleted | 2007-03-16 | amount | 715 | 
+| A7 | A100 | SendforCreditCollectionCompleted | 2009-03-30 | occurrence | 1 | 
+| A8 | A10000 | CreateFineCompleted | 2007-03-09 | amount | 360 | 
+| A8 | A10000 | CreateFineCompleted | 2007-03-09 | totalpaymentamount | 0.0 | 
+| R3 | A10000 | TouchedBy561 | 2007-03-09 | occurrence | 1 | 
+| A9 | A10000 | SendFineCompleted | 2007-07-17 | expense | 130 | 
+| A10 | A10000 | InsertFineNotificationCompleted | 2007-08-02 | occurrence | 1 | 
+| A11 | A10000 | AddpenaltyCompleted | 2007-10-01 | amount | 740 | 
+| A12 | A10000 | PaymentCompleted | 2008-09-09 | paymentamount | 870 | 
+| A12 | A10000 | PaymentCompleted | 2008-09-09 | totalpaymentamount | 87.0 | 
+| A13 | A10001 | CreateFineCompleted | 2007-03-19 | amount | 360 |
+
+# Dynamic Feature Generator
+
+The `DynamicFeatureGenerator` class ion package `rprom` contains everything you need 
+to create your dynamic features out of an event-log.
+
+Build an instance of class `DynamicFeatureGenerator` and feed the events:
+
+```{r build_dfg}
+dfg = DynamicFeatureGenerator(period = "month")
+
+dfg$feed_eventlog(el %>% rename(attribute = variable))
+
+```
+
+Now you can 

@@ -6,17 +6,20 @@
 #' @name rprom
 #' @include transys.R
 #' @include prom.R
-#' @include promtools.R
+#' @include prom_tools.R
 #' @include prosim.R
-#' @include tstools.R
-#' @include tsvis.R
-#' @include dfgtools.R
+#' @include ts_tools.R
+#' @include ts_vis.R
+#' @include dfg.R
+#' @include dfg_tools.R
+#' @import magrittr
+#' @import reshape2
 #' @import dplyr
 #' @import rutils
 
-# Current Version: 2.2.7
+# Current Version: 2.2.8
 # Issue Date: 08 November 2016
-# Last Issue: 18 May 2022
+# Last Issue: 14 June 2022
 
 # Version     Date                 Action
 # ----------------------------------
@@ -75,5 +78,6 @@
 # 2.2.5       03 May 2022          transys.R updated to version 1.0.1
 # 2.2.6       04 May 2022          tstools.R updated to version 0.1.1
 # 2.2.7       18 May 2022          transys.R updated to version 1.0.2
+# 2.2.8       14 June 2022         dfg.R added.
 
 globalVariables(c("new", "type", "caseID", "taskID", "eventTime", "time", "mean", "median"))

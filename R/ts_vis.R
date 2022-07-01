@@ -164,7 +164,7 @@ plot_traces_bar  = function(obj, measure = c('freq', 'time'), time_unit = c('sec
     TBL[, coln] <- TBL[, coln]*k
     TBL$tooltip = TBL$path %>% paste0('  ', ags[aggregator], ' Process Time: ', TBL %>% pull(agg[aggregator] %++% 'Time') %>% round(digits = 2), ' ',time_unit, 's')
     TBL %>%
-      dplyr::arrange_(coln) %>%
+      dplyr::arrange(sym(coln)) %>%
       rvis::rvisPlot(x = coln, y = 'variation', tooltip = 'tooltip', type = 'bar', plotter = plotter, color = rutils::color.mean('red', 'white'), ...)
   }
 }
@@ -213,7 +213,7 @@ plot_statuses_bar = function(obj, measure = c('freq', 'totTime'), time_unit = c(
   ND[, colname[measure]] <- k*ND[, colname[measure]]
   ND$tooltip <- ND$status %>% paste0('  (', vrs[measure],': ', ND %>% pull(colname[measure]) %>% round(digits = 2), tus, ')')
 
-  ND %>% arrange_(colname[measure]) %>%
+  ND %>% arrange(sym(colname[measure])) %>%
     rvis::rvisPlot(x = colname[measure], y = 'status', tooltip = 'tooltip', plotter = plotter, type = 'bar', config = cfg, ...)
 }
 

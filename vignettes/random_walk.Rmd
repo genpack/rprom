@@ -45,7 +45,7 @@ To obtain the status probability distribution after each transition, we simply m
 
 Here, we will show you how to obtain te Transition(Adjacency) Matrix from an onject of class `TransitionSystem`.
 
-We used dataset `hospital_billing` from package eventdata for this study 
+We used dataset `hospital_billing` from package `eventdataR` for this study 
 as it contains case status data in column `state`.
 To shorten the status labels, we renamed them to their abbreviated form.
 You can make any changes to the eventlog history of a `TransitionSystem` object directly but you will need to 
