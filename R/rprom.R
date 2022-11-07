@@ -79,5 +79,6 @@
 # 2.2.6       04 May 2022          tstools.R updated to version 0.1.1
 # 2.2.7       18 May 2022          transys.R updated to version 1.0.2
 # 2.2.8       14 June 2022         dfg.R added.
+# 2.2.9       07 November 2022     sfg.R added.
 
 globalVariables(c("new", "type", "caseID", "taskID", "eventTime", "time", "mean", "median"))

@@ -32,6 +32,7 @@ DynamicFeatureGenerator = setRefClass(
       # }
       el$eventTime = lubridate::as_datetime(el$eventTime)
       
+      # Impute eventID column if it does not exist in the eventlog
       if(!'eventID' %in% colnames(el)){
         el$eventID = paste0("C" , 
                            factor(el$caseID) %>% as.integer, "P", 
