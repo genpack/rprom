@@ -7,9 +7,9 @@
 # Example:
 # transactionReported_amount_SUMG0SUML5
 
-last.narm = function(x){last(x[!is.na(x)])}
+last.narm = function(x){dplyr::last(x[!is.na(x)])}
 
-AGGREGATOR_FUNCTION = list(sum = sum, avg = mean, gavg = rutils::geomean, eavg = rutils::expmean, prd = prod, med = median, sdv = sd, var = var, max = max, min = min, last = last, count = length)
+AGGREGATOR_FUNCTION = list(sum = sum, avg = mean, gavg = rutils::geomean, eavg = rutils::expmean, prd = prod, med = median, sdv = sd, var = var, max = max, min = min, last = dplyr::last, count = length)
 
 CUMULATIVE_AGGREGATOR_FUNCTION = list(last = last.narm,
                       sum = cumsum, max = cummax, min = cummin, avg = dplyr::cummean,

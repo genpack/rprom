@@ -70,6 +70,11 @@ EVENTLOG.BILLS = list(
   )  
 )
 
+# 1065-0322
+# Ref No:
+#   
+# eb0013662705
+
 
 # Example:
 generate_eventlog_single(case_profile = cp, event_type = 'HomeLoanBillArrived', event_config = EVENTLOG.BILLS$PrincipalBillIssued, 

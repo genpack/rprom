@@ -8,7 +8,7 @@ Maintainer: Nima Ramezani <nima.ramezani@gmail.com>
 Description: The package is still under construction. Documentation incomplete! Use at your own risk!
 License: Artistic-2.0
 LazyData: TRUE
-RoxygenNote: 7.2.0
+RoxygenNote: 7.2.1
 Imports: magrittr, reshape2, dplyr, rutils
 Collate:
     'dfg.R'
@@ -18,11 +18,11 @@ Collate:
     'prom_tools.R'
     'prom_vis.R'
     'prosim.R'
+    'sfg.R'
     'ts_vis.R'
     'ts_tools.R'
     'transys.R'
     'rprom.R'
-    'sample_generator_configs.R'
     'surv_tools.R'
     'survival.R'
 URL: https://genpack.github.io/rprom

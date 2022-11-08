@@ -11,6 +11,7 @@
 #' @include ts_tools.R
 #' @include ts_vis.R
 #' @include dfg.R
+#' @include sfg.R
 #' @include dfg_tools.R
 #' @import magrittr
 #' @import reshape2
