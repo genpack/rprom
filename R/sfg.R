@@ -134,21 +134,31 @@ SnapshotFeatureGenerator = setRefClass(
           stop("eventlog not found for feature %s" %>% sprintf(fn))
         }
         
-        
         ## Find custom eventIDs
         if(fc$eventType %in% names(settings$custom_eventTypes)){
-          if(inherits(settings$custom_eventTypes[[fc$eventType]], 'character')){
-            eventType_domain = settings$custom_eventTypes[[fc$eventType]]
-          } else if (inherits(settings$custom_eventTypes[[fc$eventType]], 'list'))
-          eventType_domain = settings$custom_eventTypes[[fc$eventType]]$domain
-          if(!is.null(settings$custom_eventTypes[[fc$eventType]]$keywords)){
-            eventType_domain %<>% c(eventlogs[[fc$eventlog]]$eventType_attributes$eventType %>% 
-                                      rutils::charFilter(settings$custom_eventTypes[[fc$eventType]]$keywords, and = T)) %>% unique
-            if(eventType_domain %==% eventlogs[[fc$eventlog]]$eventType_attributes$eventType){
-              eventType_domain = NULL
+          eventType_domain = NULL
+          item = settings$custom_eventTypes[[fc$eventType]]
+          if(inherits(item, 'character')){
+            eventType_domain = item
+          } else if (inherits(item, 'list')){
+            eventType_domain = item$domain
+            if(!is.null(item$keywords)){
+              eventType_domain %<>% 
+                union(eventlogs[[fc$eventlog]]$eventType_attributes$eventType %>% 
+                        rutils::charFilter(
+                          item$keywords, 
+                          and = F))
+            }
+            if(!is.null(item$keywordsOr)){
+              eventType_domain %<>% 
+                intersect(eventlogs[[fc$eventlog]]$eventType_attributes$eventType %>% 
+                            rutils::charFilter(item$keywordsOr, and = F))
             }
           }
-          fel %>% eventlog_filter_apply(eventType_domain, settings$custom_eventTypes[[fc$eventType]]$attribute, settings$eventTypes[[fc$eventType]]$value) %>% 
+          if(eventType_domain %==% eventlogs[[fc$eventlog]]$eventType_attributes$eventType){
+            eventType_domain = NULL
+          }
+          fel %>% eventlog_filter_apply(eventType_domain, item$attribute, settings$eventTypes[[fc$eventType]]$value) %>% 
             distinct(eventID) -> custom_event_ids
           
           fel = custom_event_ids %>% left_join(eventlogs[[fc$eventlog]]$table, by = 'eventID') %>% 
