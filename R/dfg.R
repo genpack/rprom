@@ -1,4 +1,7 @@
 # Dynamic Feature Generator Module
+# Version     Date                 Action
+# ----------------------------------
+# 0.0.1       14 June 2022     Initial issue by file dfg.R
 
 DynamicFeatureGenerator = setRefClass(
   "DynamicFeatureGenerator",

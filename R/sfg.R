@@ -1,5 +1,8 @@
 # Snapshot Feature Generator from event-log for database tables
-
+# Version     Date                 Action
+# ----------------------------------
+# 0.0.1       07 November 2022     Initial issue by file sfg.R
+# 0.0.2       11 November 2022     keywordsUnion added to eventType filter parameters
 
 EVENTLOG_COLUMN_HEADERS = c('eventID', 'caseID', 'eventType', 'eventTime', 'attribute', 'value')
 PERIOD_SECONDS = c(second = 1, minute = 60, hour = 3600, day = 24*3600)
@@ -147,12 +150,12 @@ SnapshotFeatureGenerator = setRefClass(
                 union(eventlogs[[fc$eventlog]]$eventType_attributes$eventType %>% 
                         rutils::charFilter(
                           item$keywords, 
-                          and = F))
+                          and = T))
             }
-            if(!is.null(item$keywordsOr)){
+            if(!is.null(item$keywordsUnion)){
               eventType_domain %<>% 
                 intersect(eventlogs[[fc$eventlog]]$eventType_attributes$eventType %>% 
-                            rutils::charFilter(item$keywordsOr, and = F))
+                            rutils::charFilter(item$keywordsUnion, and = F))
             }
           }
           if(eventType_domain %==% eventlogs[[fc$eventlog]]$eventType_attributes$eventType){
