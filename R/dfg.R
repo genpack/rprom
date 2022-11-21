@@ -24,7 +24,7 @@ DynamicFeatureGenerator = setRefClass(
       }
     },
     
-    feed_eventlog = function(el){
+    feed.eventlog = function(el){
 
       el %<>% as.data.frame
       

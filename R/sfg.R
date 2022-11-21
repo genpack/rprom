@@ -8,6 +8,21 @@ EVENTLOG_COLUMN_HEADERS = c('eventID', 'caseID', 'eventType', 'eventTime', 'attr
 PERIOD_SECONDS = c(second = 1, minute = 60, hour = 3600, day = 24*3600)
 
 
+rbig_collect = function(tbl, ...){
+  df = try(collect(tbl), silent = T)
+  if(inherits(df, 'try-error')){
+    if(inherits(tbl, 'tbl_BigQueryConnection')){
+      args = list(...)
+      sql_query = tbl %>% dbplyr::sql_render()
+      tb <- bigrquery::bq_project_query(args[[1]]$project, sql_query %>% as.character)
+      df <- bigrquery::bq_table_download(tb) -> eventtype_attributes_web_logins
+    } else stop("Argument `tbl` is not a bigquery table!")
+  }
+  return(df)
+}
+
+
+
 ## Abbreviated variable names:
 # # fn: feature name
 # # fc: feature config
@@ -58,14 +73,14 @@ SnapshotFeatureGenerator = setRefClass(
   fields = list(
     settings = "list",
     eventlogs = "list",
-    features_db = "list",
+    features.dbi = "list",
     features = "list"
   ),
   
   methods = list(
     initialize = function(...){
       # default settings
-      settings <<- list(snapshot = Sys.time(), period = "day", time_unit = 'day', download_features = TRUE, features = list(), custom_eventTypes = list())
+      settings <<- list(snapshot = Sys.time(), period = "day", time_unit = 'day', features = list(), custom_eventTypes = list())
       input_settings = list(...)
       if(length(input_settings) > 0){
         settings <<- settings %>% rlist::list.merge(input_settings)
@@ -84,104 +99,108 @@ SnapshotFeatureGenerator = setRefClass(
       }
     },
     
-    feed_eventlog = function(eventlog_table, eventlog_name, eventlog_address = NULL){
+    feed.eventlog = function(eventlog_table, eventlog_name, ...){
       if(inherits(eventlog_table, "tbl_dbi")){
-        eventlogs[[eventlog_name]] <<- list(table = eventlog_table, address = eventlog_address) 
+        eventlogs[[eventlog_name]] <<- list(table = eventlog_table, ...) 
         columns = colnames(eventlogs[[eventlog_name]]$table)
         rutils::assert(columns %==% EVENTLOG_COLUMN_HEADERS, 
                        "These column headers are missing in the eventlog %s: %s" %>% 
                          sprintf(eventlog_name, 
                                  paste(EVENTLOG_COLUMN_HEADERS %-% columns, collapse = ", ")))
-        eventlogs[[eventlog_name]]$eventType_attributes <<- eventlogs[[eventlog_name]]$table %>% 
-          distinct(eventType, attribute) %>% collect()        
+        eventlogs[[eventlog_name]]$eventType_attributes.dbi <<- eventlogs[[eventlog_name]]$table %>% distinct(eventType, attribute)
+        
+        try(eventlogs[[eventlog_name]]$eventType_attributes.dbi %>% rbig_collect(...), silent = T) ->>
+          eventlogs[[eventlog_name]]$eventType_attributes
+        
       } else {
         stop("Not any other type is supported yet. No eventlogs added.")
       }
     },
     
     download.features = function(){
-      for(fn in names(features_db)){
-        if(!inherits(features[[fn]], 'data.frame')){
-          features[[fn]] <<- collect(features_db[[fn]])
+      for(fn in setdiff(names(features.dbi), names(features))){
+        features[[fn]] <<- try(rbig_collect(features.dbi[[fn]], eventlogs[[settings$features[[fn]]$eventlog]]), silent = T)
+      }  
+    },
+    
+    get.features.dbi = function(){
+      for(fn in names(settings$features)){
+        if(!fn %in% names(features.dbi)){
+          fc = settings$features[[fn]]
+          el_address = eventlogs[[fc$eventlog]]$address
+          
+          ## Filter for time
+          snapshot = lubridate::as_datetime(settings$snapshot)
+          fc$window_type <- rutils::verify(fc$window_type, "character", domain = c('sliding', 'growing'), default = 'sliding')
+          if(fc$window_type == 'sliding'){
+            if(fc$period %in% names(PERIOD_SECONDS)){
+              window_start = snapshot - fc$window_size*PERIOD_SECONDS[[fc$period]]
+            } else switch(fc$period,
+                          "week" = {window_start = snapshot - lubridate::weeks(fc$window_size)},
+                          "month" = {window_start = snapshot - months(fc$window_size)},
+                          "year" = {window_start = snapshot - lubridate::years(fc$window_size)})
+          } else if (fc$window_type == 'growing'){
+            if(is.null(fc$window_start)){
+              window_start = lubridate::as_datetime('1900-01-01')
+            } else {
+              window_start = fc$window_start
+            }
+          }
+          
+          if(inherits(eventlogs[[fc$eventlog]]$table, "tbl")){
+            fel <- eventlogs[[fc$eventlog]]$table %>% 
+              dplyr::filter(eventTime <= snapshot, eventTime >= window_start)
+          } else {
+            stop("eventlog not found for feature %s" %>% sprintf(fn))
+          }
+          
+          ## Find custom eventIDs
+          if(fc$eventType %in% names(settings$custom_eventTypes)){
+            eventType_domain = NULL
+            item = settings$custom_eventTypes[[fc$eventType]]
+            if(inherits(item, 'character')){
+              eventType_domain = item
+            } else if (inherits(item, 'list')){
+              eventType_domain = item$domain
+              if(!is.null(item$keywords)){
+                eventType_domain %<>% 
+                  union(eventlogs[[fc$eventlog]]$eventType_attributes$eventType %>% 
+                          rutils::charFilter(
+                            item$keywords, 
+                            and = T))
+              }
+              if(!is.null(item$keywordsUnion)){
+                eventType_domain %<>% 
+                  intersect(eventlogs[[fc$eventlog]]$eventType_attributes$eventType %>% 
+                              rutils::charFilter(item$keywordsUnion, and = F))
+              }
+            }
+            if(eventType_domain %==% eventlogs[[fc$eventlog]]$eventType_attributes$eventType){
+              eventType_domain = NULL
+            }
+            fel %>% eventlog_filter_apply(eventType_domain, item$attribute, settings$eventTypes[[fc$eventType]]$value) %>% 
+              distinct(eventID) -> custom_event_ids
+            
+            fel = custom_event_ids %>% left_join(eventlogs[[fc$eventlog]]$table, by = 'eventID') %>% 
+              eventlog_filter_apply(attributes = fc$attribute, values = fc$value)
+          } else {
+            fel %<>% eventlog_filter_apply(eventTypes = fc$eventType, attributes = fc$attribute, values = fc$value)   
+          }
+          
+          fel %<>% 
+            dplyr::group_by(eventID) %>% 
+            summarise_all(min) %>% 
+            group_by(caseID)
+          
+          features.dbi[[fn]] <<- parse(text = "ungroup(summarise(fel, %s = %s(value)))" %>% sprintf(fn, fc$aggregator)) %>% eval
         }
       }
     },
     
-    get.features = function(){
-      for(fn in names(settings$features)){
-        fc = settings$features[[fn]]
-        el_address = eventlogs[[fc$eventlog]]$address
-
-        ## Filter for time
-        snapshot = lubridate::as_datetime(settings$snapshot)
-        fc$window_type <- rutils::verify(fc$window_type, "character", domain = c('sliding', 'growing'), default = 'sliding')
-        if(fc$window_type == 'sliding'){
-          if(fc$period %in% names(PERIOD_SECONDS)){
-            window_start = snapshot - fc$window_size*PERIOD_SECONDS[[fc$period]]
-          } else switch(fc$period,
-                        "week" = {window_start = snapshot - lubridate::weeks(fc$window_size)},
-                        "month" = {window_start = snapshot - months(fc$window_size)},
-                        "year" = {window_start = snapshot - lubridate::years(fc$window_size)})
-        } else if (fc$window_type == 'growing'){
-          if(is.null(fc$window_start)){
-            window_start = lubridate::as_datetime('1900-01-01')
-          } else {
-            window_start = fc$window_start
-          }
-        }
-        
-        if(inherits(eventlogs[[fc$eventlog]]$table, "tbl")){
-          fel <- eventlogs[[fc$eventlog]]$table %>% 
-            dplyr::filter(eventTime <= snapshot, eventTime >= window_start)
-        } else {
-          stop("eventlog not found for feature %s" %>% sprintf(fn))
-        }
-        
-        ## Find custom eventIDs
-        if(fc$eventType %in% names(settings$custom_eventTypes)){
-          eventType_domain = NULL
-          item = settings$custom_eventTypes[[fc$eventType]]
-          if(inherits(item, 'character')){
-            eventType_domain = item
-          } else if (inherits(item, 'list')){
-            eventType_domain = item$domain
-            if(!is.null(item$keywords)){
-              eventType_domain %<>% 
-                union(eventlogs[[fc$eventlog]]$eventType_attributes$eventType %>% 
-                        rutils::charFilter(
-                          item$keywords, 
-                          and = T))
-            }
-            if(!is.null(item$keywordsUnion)){
-              eventType_domain %<>% 
-                intersect(eventlogs[[fc$eventlog]]$eventType_attributes$eventType %>% 
-                            rutils::charFilter(item$keywordsUnion, and = F))
-            }
-          }
-          if(eventType_domain %==% eventlogs[[fc$eventlog]]$eventType_attributes$eventType){
-            eventType_domain = NULL
-          }
-          fel %>% eventlog_filter_apply(eventType_domain, item$attribute, settings$eventTypes[[fc$eventType]]$value) %>% 
-            distinct(eventID) -> custom_event_ids
-          
-          fel = custom_event_ids %>% left_join(eventlogs[[fc$eventlog]]$table, by = 'eventID') %>% 
-            eventlog_filter_apply(attributes = fc$attribute, values = fc$value)
-        } else {
-          fel %<>% eventlog_filter_apply(eventTypes = fc$eventType, attributes = fc$attribute, values = fc$value)   
-        }
-
-        fel %<>% 
-          dplyr::group_by(eventID) %>% 
-          summarise_all(min) %>% 
-          group_by(caseID)
-        
-        features_db[[fn]] <<- parse(text = "ungroup(summarise(fel, %s = %s(value)))" %>% sprintf(fn, fc$aggregator)) %>% eval
-      }
-      
-      if(settings$download_features){download.features()}
-      
+    join_features = function(){
       features %>% purrr::reduce(.f = dplyr::full_join, by = 'caseID')
     }
+    
   )
 )  
 
