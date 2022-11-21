@@ -3,6 +3,7 @@
 # ----------------------------------
 # 0.0.1       07 November 2022     Initial issue by file sfg.R
 # 0.0.2       11 November 2022     keywordsUnion added to eventType filter parameters
+# 0.0.3       21 November 2022     function rbig_collect() added for bigquery adressing the dbplyr version issue for bigquery
 
 EVENTLOG_COLUMN_HEADERS = c('eventID', 'caseID', 'eventType', 'eventTime', 'attribute', 'value')
 PERIOD_SECONDS = c(second = 1, minute = 60, hour = 3600, day = 24*3600)
