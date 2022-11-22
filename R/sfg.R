@@ -3,7 +3,7 @@
 # ----------------------------------
 # 0.0.1       07 November 2022     Initial issue by file sfg.R
 # 0.0.2       11 November 2022     keywordsUnion added to eventType filter parameters
-# 0.0.3       21 November 2022     function rbig_collect() added for bigquery adressing the dbplyr version issue for bigquery
+# 0.0.4       22 November 2022     function rbig_collect() added for bigquery adressing the dbplyr version issue for bigquery
 
 EVENTLOG_COLUMN_HEADERS = c('eventID', 'caseID', 'eventType', 'eventTime', 'attribute', 'value')
 PERIOD_SECONDS = c(second = 1, minute = 60, hour = 3600, day = 24*3600)
@@ -14,6 +14,9 @@ rbig_collect = function(tbl, ...){
   if(inherits(df, 'try-error')){
     if(inherits(tbl, 'tbl_BigQueryConnection')){
       args = list(...)
+      if(is.null(names(args)) & length(args) == 1 & inherits(args[[1]], 'list')){
+        args = args[[1]]
+      }
       sql_query = tbl %>% dbplyr::sql_render()
       tb <- bigrquery::bq_project_query(args$project, sql_query %>% as.character)
       df <- bigrquery::bq_table_download(tb) -> eventtype_attributes_web_logins

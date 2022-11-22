@@ -1,7 +1,7 @@
 Package: rprom
 Type: Package
 Title: This package will be a complete toolbox for process mining, management, prediction, simulation and optimization
-Version: 2.3.1
+Version: 2.3.2
 Date: 22 November 2022
 Author: Nima Ramezani
 Maintainer: Nima Ramezani <nima.ramezani@gmail.com>
