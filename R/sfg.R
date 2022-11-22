@@ -3,7 +3,7 @@
 # ----------------------------------
 # 0.0.1       07 November 2022     Initial issue by file sfg.R
 # 0.0.2       11 November 2022     keywordsUnion added to eventType filter parameters
-# 0.0.6       22 November 2022     function rbig_collect() added for bigquery adressing the dbplyr version issue for bigquery
+# 0.0.7       22 November 2022     function rbig_collect() added for bigquery adressing the dbplyr version issue for bigquery
 
 EVENTLOG_COLUMN_HEADERS = c('eventID', 'caseID', 'eventType', 'eventTime', 'attribute', 'value')
 PERIOD_SECONDS = c(second = 1, minute = 60, hour = 3600, day = 24*3600)
@@ -208,10 +208,12 @@ SnapshotFeatureGenerator = setRefClass(
     join_features = function(){
       cat("\n Joining features ... ")
       
-      features %>% 
+      output = features %>% 
         rlist::list.exclude(!inherits(., 'data.frame')) %>% 
         purrr::reduce(.f = dplyr::full_join, by = 'caseID')
+      
       cat('Done! \n')
+      return(output)
     }
     
   )
