@@ -15,7 +15,7 @@ rbig_collect = function(tbl, ...){
     if(inherits(tbl, 'tbl_BigQueryConnection')){
       args = list(...)
       sql_query = tbl %>% dbplyr::sql_render()
-      tb <- bigrquery::bq_project_query(args[[1]]$project, sql_query %>% as.character)
+      tb <- bigrquery::bq_project_query(args$project, sql_query %>% as.character)
       df <- bigrquery::bq_table_download(tb) -> eventtype_attributes_web_logins
     } else stop("Argument `tbl` is not a bigquery table!")
   }
