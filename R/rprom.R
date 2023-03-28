@@ -18,7 +18,7 @@
 #' @import dplyr
 #' @import rutils
 
-# Current Version: 2.3.6
+# Current Version: 2.3.7
 # Issue Date: 08 November 2016
 # Last Issue: 28 March 2023
 
@@ -81,6 +81,6 @@
 # 2.2.7       18 May 2022          transys.R updated to version 1.0.2
 # 2.2.8       14 June 2022         dfg.R added.
 # 2.2.9       07 November 2022     sfg.R added.
-# 2.3.6       28 March 2023        sfg.R updated to version 0.0.8
+# 2.3.7       28 March 2023        sfg.R updated to version 0.0.9
 
 globalVariables(c("new", "type", "caseID", "taskID", "eventTime", "time", "mean", "median"))

@@ -5,6 +5,7 @@
 # 0.0.2       11 November 2022     keywordsUnion added to eventType filter parameters
 # 0.0.7       22 November 2022     function rbig_collect() added for bigquery adressing the dbplyr version issue for bigquery
 # 0.0.8       28 March 2022        minor bug in sfg method get_features.dbi() rectified: eventTypes changed to custom_eventTypes 
+# 0.0.9       28 March 2022        minor bug in function eventlog_filter_apply() rectified: input  = parse(text = script) %>% eval
 
 EVENTLOG_COLUMN_HEADERS = c('eventID', 'caseID', 'eventType', 'eventTime', 'attribute', 'value')
 PERIOD_SECONDS = c(second = 1, minute = 60, hour = 3600, day = 24*3600)
@@ -39,20 +40,20 @@ eventlog_filter_apply <- function(input, eventTypes = NULL, attributes = NULL, v
   if(!is.null(values)){
     if(inherits(values, 'list')){
       if(!is.null(values$domain)){
-        script = paste0("input = dplyr::filter(input, value %in% c(", paste(values$domain, collapse = ","), "))")
-        parse(text = script) %>% eval
+        script = paste0("dplyr::filter(input, value %in% c(", paste(values$domain, collapse = ","), "))")
+        input  = parse(text = script) %>% eval
       }
       if(!is.null(values$min)){
-        script = paste0("input = dplyr::filter(input, value > ", values$min, ")")
-        parse(text = script) %>% eval
+        script = paste0("dplyr::filter(input, value > ", values$min, ")")
+        input  = parse(text = script) %>% eval
       }
       if(!is.null(values$max)){
-        script = paste0("input = dplyr::filter(input, value < ", values$max, ")")
-        parse(text = script) %>% eval
+        script = paste0("dplyr::filter(input, value < ", values$max, ")")
+        input  = parse(text = script) %>% eval
       }
     } else if (inherits(values, c('numeric', 'integer'))){
       script = paste0("dplyr::filter(input, value %in% c(", paste(values, collapse = ","), "))")
-      input = parse(text = script) %>% eval
+      input  = parse(text = script) %>% eval
     }
   }
   return(input)
