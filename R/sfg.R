@@ -4,6 +4,7 @@
 # 0.0.1       07 November 2022     Initial issue by file sfg.R
 # 0.0.2       11 November 2022     keywordsUnion added to eventType filter parameters
 # 0.0.7       22 November 2022     function rbig_collect() added for bigquery adressing the dbplyr version issue for bigquery
+# 0.0.8       28 March 2022        minor bug in sfg method get_features.dbi() rectified: eventTypes changed to custom_eventTypes 
 
 EVENTLOG_COLUMN_HEADERS = c('eventID', 'caseID', 'eventType', 'eventTime', 'attribute', 'value')
 PERIOD_SECONDS = c(second = 1, minute = 60, hour = 3600, day = 24*3600)
@@ -186,7 +187,7 @@ SnapshotFeatureGenerator = setRefClass(
             if(eventType_domain %==% eventlogs[[fc$eventlog]]$eventType_attributes$eventType){
               eventType_domain = NULL
             }
-            fel %>% eventlog_filter_apply(eventType_domain, item$attribute, settings$eventTypes[[fc$eventType]]$value) %>% 
+            fel %>% eventlog_filter_apply(eventType_domain, item$attribute, settings$custom_eventTypes[[fc$eventType]]$value) %>% 
               distinct(eventID) -> custom_event_ids
             
             fel = custom_event_ids %>% left_join(eventlogs[[fc$eventlog]]$table, by = 'eventID') %>% 
