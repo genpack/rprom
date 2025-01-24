@@ -9,7 +9,7 @@
 
 last.narm = function(x){dplyr::last(x[!is.na(x)])}
 
-AGGREGATOR_FUNCTION = list(sum = sum, avg = mean, gavg = rutils::geomean, eavg = rutils::expmean, prd = prod, med = median, sdv = sd, var = var, max = max, min = min, last = dplyr::last, count = length)
+AGGREGATOR_FUNCTION = list(sum = sum, avg = mean, mean = mean, gavg = rutils::geomean, eavg = rutils::expmean, prd = prod, median = median, med = median, sd = sd, sdv = sd, var = var, max = max, min = min, last = dplyr::last, count = length)
 
 CUMULATIVE_AGGREGATOR_FUNCTION = list(last = last.narm,
                       sum = cumsum, max = cummax, min = cummin, avg = dplyr::cummean,
@@ -124,25 +124,7 @@ dfg.periodic.sparklyr = function(eventlog, features, period = 'day', start = NUL
   return(molten)
 }
 
-# if early_call is true and location is less than win_size (early), then aggregator is applied on the smaller window from start to location 
-vect.history = function(location, vector, win_size, fun, early_call = F){
-  if(location < win_size){
-    if(early_call){out = do.call(fun, args = list(vector[sequence(location)]))} else {out = NA}
-  } else {
-    out = do.call(fun, args = list(vector[(location - win_size):location]))
-  }
-  return(out)
-}
 
-vect.future = function(location, vector, win_size, fun, late_call = F){
-  N = length(vector)
-  if(N - location < win_size){
-    if(late_call){out = do.call(fun, args = list(vector[location:N]))} else {out = NA}
-  } else {
-    out = do.call(fun, args = list(vector[location:(location + win_size)]))
-  }
-  return(out)
-}
 
 # Only for moving windows not growing
 dfg.historic.old = function(periodic, features, early_call = T){
@@ -150,7 +132,7 @@ dfg.historic.old = function(periodic, features, early_call = T){
   for (ft in features){
     if(is.null(ft$drop_reference)){ft$drop_reference = F}
     periodic %>% nrow %>% sequence %>% 
-      sapply(FUN = vect.history, vector = periodic[, ft$reference], win_size = ft$win_size, fun = ft$aggregator, early_call = early_call) -> periodic[, ft$name]
+      sapply(FUN = vect.sliding.backward, vector = periodic[, ft$reference], win_size = ft$win_size, fun = ft$aggregator, early_call = early_call) -> periodic[, ft$name]
     if(ft$drop_reference){drops = c(drops, ft$reference)}
   }
 
@@ -218,15 +200,19 @@ moving_aggregator = function (x, n = Inf, type = c("s", "t", "w", "m", "e", "r")
 #' @export
 dfg.historic.sliding = function(periodic, features, caseID_col = 'caseID', eventTime_col = 'eventTime'){
   drops = character()
-  periodic %<>% mutate(.row = sequence(nrow(.))) %>% arrange_(sym(caseID_col), sym(eventTime_col))
+  periodic %<>% mutate(.row = sequence(nrow(.))) %>% arrange(!!sym(caseID_col), !!sym(eventTime_col))
   
   #todo: use parallel computing  
   for (ft in features){
     if(is.null(ft$drop_reference)){ft$drop_reference = F}
     if(is.null(ft$aggregator)){ft$aggregator = mean}
+    if(inherits(ft$aggregator, 'character')){ft$aggregator = AGGREGATOR_FUNCTION[[ft$aggregator]]}
+    verify(ft$aggregator, 'function')
+    
     if(is.null(ft$type)){ft$type = 's'}
     if(ft$win_size < 2){ft$win_size = 2}
     
+
     ft_fun = function(v) moving_aggregator(x = v, n = ft$win_size, type = ft$type, aggregator = ft$aggregator)
 
     periodic %>% pull(ft$reference) %>% ave(id = periodic %>% pull(caseID_col), FUN = ft_fun) -> periodic[, ft$name]
@@ -236,11 +222,31 @@ dfg.historic.sliding = function(periodic, features, caseID_col = 'caseID', event
   return(periodic[, colnames(periodic) %>% setdiff(drops)] %>% arrange(.row) %>% select(-.row))
 }
 
+
+#' @export
+dfg.lagger = function(input, features, caseID_col = 'caseID', eventTime_col = 'eventTime'){
+  drops = character()
+  input %<>% mutate(.row = sequence(nrow(.))) %>% arrange(!!sym(caseID_col), !!sym(eventTime_col))
+  
+  #todo: use parallel computing  
+  for (ft in features){
+    if(is.null(ft$drop_reference)){ft$drop_reference = F}
+    verify(ft$offset, c('integer', 'numeric'), default = 1)
+
+    ft_fun = function(v) lag(v, ft$offset)
+    input %>% pull(ft$reference) %>% ave(id = input %>% pull(caseID_col), FUN = ft_fun) -> input[[ft$name]]
+    
+    if(ft$drop_reference){drops = c(drops, ft$reference)}
+  }
+  return(input[colnames(input) %>% setdiff(drops)] %>% arrange(.row) %>% select(-.row))
+}
+
+
 dfg.labeler = function(periodic, features){
   drops = character()
   for (ft in features){
     if(is.null(ft$drop_reference)){ft$drop_reference = F}
-    periodic %>% nrow %>% sequence %>% sapply(FUN = vect.future, vector = periodic[, ft$reference], win_size = ft$win_size, fun = ft$aggregator) -> periodic[, ft$name]
+    periodic %>% nrow %>% sequence %>% sapply(FUN = vect.sliding.forward, vector = periodic[, ft$reference], win_size = ft$win_size, fun = ft$aggregator) -> periodic[, ft$name]
     if(ft$drop_reference){drops = c(drops, ft$reference)}
   }
   return(periodic[, colnames(periodic) %>% setdiff(drops)])
@@ -358,8 +364,13 @@ generate_dynamic_features_pack = function(el, period = c('day', "week", "month",
     lambda = function(v){seq(from = as.Date(v[2]), to = as.Date(v[3]), by = period)}
     out$case_timends %>% mutate(minTime = cut(minTime, breaks = period), maxTime = cut(maxTime, breaks = period)) %>%
       apply(1, lambda) -> a
-    names(a) <- out$case_timends$caseID
-    purrr::map_dfr(names(a), .f = function(v) {data.frame(caseID = v, eventTime = a[[v]])}) -> bb
+    if(inherits(a, 'list')){
+      names(a) <- out$case_timends$caseID
+      purrr::map_dfr(names(a), .f = function(v) {data.frame(caseID = v, eventTime = a[[v]])}) -> bb
+    } else {
+      bb = out$case_timends %>% group_by(caseID) %>% 
+        do({data.frame(caseID = .$caseID, eventTime = seq(from = as.Date(.$minTime), to = as.Date(.$maxTime), by = period))})
+    }
 
     bb %>% anti_join(el %>% select(caseID, eventTime), by = c('caseID', 'eventTime')) %>%
       mutate(eventType = 'clock', attribute = 'counter', value = 1, timestamp = eventTime - 1) %>%
@@ -496,7 +507,7 @@ generate_dynamic_features_pack = function(el, period = c('day', "week", "month",
   if('last' %in% attr_funs){
     cat('\n', "Creating attribute last value table ... ")
     
-    el %>% reshape2::dcast(caseID + eventTime ~ attribute, value.var = 'value', fun.aggregate = last) %>%
+    el %>% reshape2::dcast(caseID + eventTime ~ attribute, value.var = 'value', fun.aggregate = dplyr::last) %>%
       column.feed.forward(col = 3:ncol(.), id_col = 'caseID') -> out$attr_last
     cat("Done!", '\n')
   }
@@ -597,9 +608,9 @@ generate_dynamic_features_pack = function(el, period = c('day', "week", "month",
     cat("Done!", '\n')
   }
   
-  if(!is.null(horizon)){
+  if(!is.null(target_horizon)){
     cat('\n', "Creating event label table ... ")
-    out %<>% add_event_labels(horizon %>% verify(c('integer', 'numeric'), lengths = 1, domain = c(1, Inf)))
+    out %<>% add_event_labels(target_horizon %>% verify(c('integer', 'numeric'), lengths = 1, domain = c(1, Inf)))
     cat("Done!", '\n')
   }
   
@@ -804,6 +815,41 @@ dfg_pack.remove_clock_events = function(pack){
     pack[[tn]] <- pack[[tn]][cns %-% charFilter(cns, 'clock')]
   }
   return(pack)
+}
+
+
+## This function generates a sql query that gives you the periodic aggregated features from an event-log
+# todo: this function is under construction and not developed yet.
+dfg.periodic.sql = function(eventlog_table_name, features, period = c('hour', 'day', 'week', 'month', 'year'), start = NULL, end = NULL){
+  period = match.arg(period)
+
+  sql_filter = ''
+  
+  if(!is.null(start)){start %<>% as.POSIXct %>% lubridate::force_tz('GMT'); sql_filter %<>% paste("WHERE eventTime > CAST(%s, DATE)" %>% sprintf(as.character(start - 1)))}
+  if(!is.null(end))  {end   %<>% as.POSIXct %>% lubridate::force_tz('GMT'); sql_filter %<>% paste("WHERE eventTime > CAST(%s, DATE)" %>% sprintf(as.character(end + 1)))}
+  
+  EL %<>% mutate(periodStart = eventTime %>% lubridate::floor_date(period), selected = T)
+  molten = data.frame()
+  for (ft in features){
+    if(!is.null(ft$eventTypes)){
+      EL$selected = EL$eventType %in% ft$eventTypes
+    }
+    
+    if(!is.null(ft$variables)){
+      EL$selected = EL$selected & (EL$variable %in% ft$variables)
+    }
+    EL %>% filter(selected) %>% group_by(caseID, periodStart) %>%
+      summarise(aggrval = do.call(ft$aggregator, list(value))) %>%
+      mutate(featureName = ft$name) %>%
+      bind_rows(molten) -> molten
+  }
+  
+  tt = data.frame(periodStart = seq(from = min(EL$periodStart), to = max(EL$periodStart), by = 'day'))
+  data.frame(caseID = unique(eventlog$caseID)) %>% group_by(caseID) %>% do({data.frame(caseID = .$caseID, periodStart = tt)}) %>%
+    left_join(molten %>% reshape2::dcast(caseID + periodStart ~ featureName, sum, value.var = 'aggrval'), by = c('caseID', 'periodStart')) -> molten
+  molten[is.na(molten)] <- 0
+  names(molten)[2] <- 'time'
+  return(molten)
 }
 
 

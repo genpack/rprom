@@ -47,7 +47,7 @@ Each row in the training set represent one house which is the *entity* in this e
 That is what we define as the *granularity of the training dataset*.
 
 In time-series data represented by dynamic features, the granularity of the dataset is per case- per time
-meaning that each row in the traioning dataset represents the status of a case at various points in time.
+meaning that each row in the training data represents the status of a case at various points in time.
 
 In the house price example, 
 although the houses could have been sold at different times and the date on which the house was sold could be used as a feature as well, it's not defined as a time-series data and features are not dynamic 

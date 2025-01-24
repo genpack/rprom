@@ -934,7 +934,7 @@ TransitionSystem = setRefClass('TransitionSystem',
                                    common_features = tables$profile.case %>% colnames %>% intersect(features)
                                    warnif(length(common_features) > 0, 'These features are overwritten: ' %++% common_features %++% '\n')
                                    tables$profile.case %>% spark.unselect(features) %>% 
-                                     left_join(cf %>% spark.select(caseID_col, features) %>% rename(caseID = caseID_col), by = 'caseID') ->> tables$profile.case
+                                     left_join(cf[c(caseID_col, features)] %>% rename(caseID = caseID_col), by = 'caseID') ->> tables$profile.case
                                  },
                                  
                                  filter.reset = function(){

@@ -246,15 +246,15 @@ TransitionSystem = setRefClass(
      dp = which(!duplicated(dataset$caseID))
      endindx = c(dp[-1] - 1, nrow(dataset))
 
-     # tables.profile.case <- dataset %>% 
-     #   dplyr::filter(status != 'START', nextStatus != 'END') %>% 
-     #   dplyr::group_by(caseID, caseStart, caseEnd) %>% 
-     #   dplyr::summarise(firstStatus = first(status), last_status = last(status),
-     #             startTime = min(startTime), endTime = max(startTime), 
-     #             path = paste(status, collapse = '-') %>% paste(last(nextStatus), sep = '-'), 
-     #             transCount = length(status), loops = sum(duplicated(status), na.rm = T)) %>%
-     #   dplyr::mutate(duration = as.numeric(endTime - startTime), 
-     #                 completed = caseStart & caseEnd, selected = T)
+     tables.profile.case <- dataset %>%
+       dplyr::filter(status != 'START', nextStatus != 'END') %>%
+       dplyr::group_by(caseID, caseStart, caseEnd) %>%
+       dplyr::summarise(firstStatus = first(status), last_status = last(status),
+                 startTime = min(startTime), endTime = max(startTime),
+                 path = paste(status, collapse = '-') %>% paste(last(nextStatus), sep = '-'),
+                 transCount = length(status), loops = sum(duplicated(status), na.rm = T)) %>%
+       dplyr::mutate(duration = as.numeric(endTime - startTime),
+                     completed = caseStart & caseEnd, selected = T)
      
      if(remove_sst){
        dataset = dataset[dataset$status != dataset$nextStatus, ] 
@@ -266,9 +266,9 @@ TransitionSystem = setRefClass(
        mutate(startDate = startTime %>% as_date,
               endDate   = endTime   %>% as_date)
      
-     # tables.profile.status <- data.frame(status = as.character(dataset$status %U% dataset$nextStatus)) %>% {rownames(.)<-.$status;.}
-     # report.caseIDs        <- tables.profile.case$caseID
-     # report.statuses       <- tables.profile.status$status
+     tables.profile.status <- data.frame(status = as.character(dataset$status %U% dataset$nextStatus)) %>% {rownames(.)<-.$status;.}
+     report.caseIDs        <- tables.profile.case$caseID
+     report.statuses       <- tables.profile.status$status
      caseStartTimes = dataset %>% group_by(caseID) %>% summarise(caseStartTime = min(startTime)) %>% ungroup
      dataset %<>% 
        left_join(caseStartTimes, by = 'caseID') %>% 
@@ -938,8 +938,8 @@ TransitionSystem = setRefClass(
      features %<>% verify('character', domain = colnames(cf), default = colnames(cf)) %-% c(caseID_col, 'caseID')
      common_features = get.case.profile(full = T) %>% colnames %>% intersect(features)
      warnif(length(common_features) > 0, 'These features are overwritten: ' %++% common_features %++% '\n')
-     get.case.profile(full = T) %>% spark.unselect(features) %>% 
-       left_join(cf %>% spark.select(caseID_col, features) %>% rename(caseID = caseID_col), by = 'caseID') ->> tables$profile.case
+     get.case.profile(full = T) %>% column_drop(features) %>% 
+       left_join(cf[c(caseID_col, features)] %>% rename(caseID = caseID_col), by = 'caseID') ->> tables$profile.case
    },
    
    reset.plots = function(){

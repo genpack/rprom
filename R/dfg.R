@@ -86,7 +86,7 @@ DynamicFeatureGenerator = setRefClass(
     },
     
     # changes the reportTime column based on the period specified
-    # also adds clock events if sequential is TRUE and eliminate exisiting clock events if there is any
+    # also adds clock events if sequential is TRUE and eliminate existing clock events if there is any
     add.report_time = function(el){
       
         if(settings$period %in% c('day', "week", "month", "quarter", "year")){
@@ -131,19 +131,25 @@ DynamicFeatureGenerator = setRefClass(
     add.clock_events = function(el){
         cat('\n', "Adding clock events ... ")
         
-        # Option 1:
-        # bb = out$case_timends %>% group_by(caseID) %>%
-        #   do({data.frame(caseID = .$caseID, reportTime = seq(from = as.Date(.$minTime), to = as.Date(.$maxTime), by = period))})
-        
-        # Option 2: (Faster)
         el %>% group_by(caseID) %>% summarise(minTime = min(eventTime), maxTime = max(eventTime)) %>% ungroup -> case_timends
-      
-        ## todo define for periods other than daily
-        lambda = function(v){seq(from = as.Date(v[2]), to = as.Date(v[3]), by = settings$period) %>% rutils::unname()}
-        case_timends %>% mutate(minTime = cut(minTime, breaks = settings$period), maxTime = cut(maxTime, breaks = settings$period)) %>%
-          apply(1, lambda) -> a
-        names(a) <- case_timends$caseID
-        purrr::map_dfr(names(a), .f = function(v) {data.frame(caseID = v, eventTime = a[[v]])}) -> bb
+        case_timends %>% mutate(minTime = cut(minTime, breaks = settings$period), maxTime = cut(maxTime, breaks = settings$period)) -> case_timends_cut
+        
+        # option 2 is faster but fails when date range of all cases are equal. Reason is that `a` becomes a matrix rather than a list.
+        if(nrow(distinct(case_timends_cut, minTime, maxTime)) == 1){
+          # Option 1:
+          bb = case_timends_cut %>% group_by(caseID) %>%
+            do({data.frame(caseID = .$caseID, eventTime = seq(from = as.Date(.$minTime), to = as.Date(.$maxTime), by = settings$period))})
+        } else {
+          # Option 2: (Faster)
+          
+          ## todo define for periods like hour, minute
+          lambda = function(v){seq(from = as.Date(v[2]), to = as.Date(v[3]), by = settings$period) %>% rutils::unname()}
+          case_timends_cut %>%
+            apply(1, lambda) -> a
+          names(a) <- case_timends$caseID
+          purrr::map_dfr(names(a), .f = function(v) {data.frame(caseID = v, eventTime = a[[v]])}) -> bb
+        }
+        
         
         bb %>% 
           # anti_join(el %>% select(caseID, eventTime), by = c('caseID', 'eventTime')) %>%
